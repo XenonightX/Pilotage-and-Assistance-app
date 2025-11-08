@@ -48,7 +48,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.14/pilotage_assistance_app/auth/change_password.php'),
+        Uri.parse('http://192.168.1.14/pilotage_and_assistance_app/auth/change_password.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": _userId,

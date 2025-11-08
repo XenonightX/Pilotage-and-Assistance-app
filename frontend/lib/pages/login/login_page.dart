@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.14/pilotage_assistance_app/auth/login.php'),
+        Uri.parse('http://192.168.1.14/pilotage_and_assistance_app/backend/auth/login.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"email": email, "password": password}),
       );

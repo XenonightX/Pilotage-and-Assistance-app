@@ -25,7 +25,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     try {
       final response = await http.post(
         Uri.parse(
-            'http://192.168.1.14/pilotage_assistance_app/auth/forgot_password.php'),
+            'http://192.168.1.14/pilotage_and_assistance_app/auth/forgot_password.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "email": _emailController.text.trim(),
