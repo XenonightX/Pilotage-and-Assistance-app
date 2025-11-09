@@ -46,7 +46,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.3/pilotage_and_assistance_app/auth/update_profile.php'),
+        Uri.parse('http://192.168.1.14/pilotage_and_assistance_app/auth/update_profile.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": _userId,

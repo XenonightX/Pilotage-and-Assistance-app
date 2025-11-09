@@ -2,7 +2,7 @@
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 
-$servername = "localhost";
+$servername = "127.0.0.1";
 $username   = "root";
 $password   = "";
 $dbname     = "dbsis_app";
