@@ -47,7 +47,7 @@ class _ProfilePageState extends State<ProfilePage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Profile',
+          'Profil Akun',
           style: TextStyle(
             color: Color.fromRGBO(12, 10, 80, 1),
             fontWeight: FontWeight.bold,

@@ -63,6 +63,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/LOGO-SIS.png
+    - assets/images/NO-BG-LOGO-SIS.png
     - assets/icons/
     
 
