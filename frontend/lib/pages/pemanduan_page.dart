@@ -11,37 +11,46 @@ class _PemanduanPageState extends State<PemanduanPage> {
   String _selectedFilter = 'Semua';
   final TextEditingController _searchController = TextEditingController();
 
-  // Dummy data
+  // Dummy data sesuai struktur database
   final List<Map<String, dynamic>> _pemanduanList = [
     {
-      'no': 'PMD-001',
-      'kapal': 'MV Ocean Star',
-      'jenis': 'Container',
-      'waktu': '10:00 WIB',
-      'tanggal': '09 Nov 2025',
+      'id': 1,
+      'pilot_name': 'Capt. Ahmad',
+      'from_where': 'Pelabuhan Dumai',
+      'to_where': 'Singapura',
+      'pilot_on_board': '2025-11-09 10:00:00',
+      'pilot_finished': '2025-11-09 14:00:00',
+      'tanggal': '2025-11-09',
+      'vessel_start': '2025-11-09 09:45:00',
+      'pilot_get_off': '2025-11-09 14:15:00',
+      'vessel_name': 'MV Ocean Star',
       'status': 'Aktif',
-      'pandu': 'Capt. Ahmad',
-      'pelabuhan': 'Pelabuhan Dumai → Singapura'
     },
     {
-      'no': 'PMD-002',
-      'kapal': 'MT Marine Tanker',
-      'jenis': 'Tanker',
-      'waktu': '14:30 WIB',
-      'tanggal': '09 Nov 2025',
+      'id': 2,
+      'pilot_name': 'Capt. Budi',
+      'from_where': 'Singapura',
+      'to_where': 'Pelabuhan Dumai',
+      'pilot_on_board': '2025-11-09 14:30:00',
+      'pilot_finished': null,
+      'tanggal': '2025-11-09',
+      'vessel_start': '2025-11-09 14:15:00',
+      'pilot_get_off': null,
+      'vessel_name': 'MT Marine Tanker',
       'status': 'Terjadwal',
-      'pandu': 'Capt. Budi',
-      'pelabuhan': 'Singapura → Pelabuhan Dumai'
     },
     {
-      'no': 'PMD-003',
-      'kapal': 'MV Cargo Express',
-      'jenis': 'Cargo',
-      'waktu': '08:00 WIB',
-      'tanggal': '09 Nov 2025',
+      'id': 3,
+      'pilot_name': 'Capt. Chandra',
+      'from_where': 'Pelabuhan Dumai',
+      'to_where': 'Malaysia',
+      'pilot_on_board': '2025-11-09 08:00:00',
+      'pilot_finished': '2025-11-09 12:00:00',
+      'tanggal': '2025-11-09',
+      'vessel_start': '2025-11-09 07:45:00',
+      'pilot_get_off': '2025-11-09 12:15:00',
+      'vessel_name': 'MV Cargo Express',
       'status': 'Selesai',
-      'pandu': 'Capt. Chandra',
-      'pelabuhan': 'Pelabuhan Dumai → Malaysia'
     },
   ];
 
@@ -104,7 +113,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Cari nama kapal atau nomor pemanduan...',
+                            hintText: 'Cari nama kapal atau nama pandu...',
                             prefixIcon: const Icon(Icons.search),
                             filled: true,
                             fillColor: Colors.white,
@@ -277,6 +286,28 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
+  // Helper: Format DateTime
+  String _formatDateTime(String? dateTime) {
+    if (dateTime == null) return '-';
+    try {
+      final dt = DateTime.parse(dateTime);
+      return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTime;
+    }
+  }
+
+  String _formatDate(String? date) {
+    if (date == null) return '-';
+    try {
+      final dt = DateTime.parse(date);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (e) {
+      return date;
+    }
+  }
+
   // ✅ Table untuk Desktop
   Widget _buildTable() {
     return Container(
@@ -296,24 +327,26 @@ class _PemanduanPageState extends State<PemanduanPage> {
         child: DataTable(
           headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
           columns: const [
-            DataColumn(label: Text('No Pemanduan', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Nama Kapal', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Jenis', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Rute', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Waktu', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Pandu', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Dari', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Ke', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Tanggal', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Pilot On Board', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Aksi', style: TextStyle(fontWeight: FontWeight.bold))),
           ],
           rows: _pemanduanList.map((data) {
             return DataRow(cells: [
-              DataCell(Text(data['no'])),
-              DataCell(Text(data['kapal'])),
-              DataCell(Text(data['jenis'])),
-              DataCell(Text(data['pelabuhan'], style: const TextStyle(fontSize: 12))),
-              DataCell(Text('${data['tanggal']}\n${data['waktu']}', style: const TextStyle(fontSize: 12))),
-              DataCell(_buildStatusBadge(data['status'])),
-              DataCell(Text(data['pandu'])),
+              DataCell(Text(data['id'].toString())),
+              DataCell(Text(data['vessel_name'] ?? '-')),
+              DataCell(Text(data['pilot_name'] ?? '-')),
+              DataCell(Text(data['from_where'] ?? '-', style: const TextStyle(fontSize: 12))),
+              DataCell(Text(data['to_where'] ?? '-', style: const TextStyle(fontSize: 12))),
+              DataCell(Text(_formatDate(data['tanggal']), style: const TextStyle(fontSize: 12))),
+              DataCell(Text(_formatDateTime(data['pilot_on_board']), style: const TextStyle(fontSize: 12))),
+              DataCell(_buildStatusBadge(data['status'] ?? 'Terjadwal')),
               DataCell(
                 Row(
                   children: [
@@ -329,7 +362,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                      onPressed: () => _showDeleteConfirmation(context, data['no']),
+                      onPressed: () => _showDeleteConfirmation(context, data['id'].toString()),
                       tooltip: 'Hapus',
                     ),
                   ],
@@ -367,24 +400,24 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    data['no'],
+                    'ID: ${data['id']}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Color.fromRGBO(12, 10, 80, 1),
                     ),
                   ),
-                  _buildStatusBadge(data['status']),
+                  _buildStatusBadge(data['status'] ?? 'Terjadwal'),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                data['kapal'],
+                data['vessel_name'] ?? '-',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
-                '${data['jenis']} • ${data['pandu']}',
+                'Pandu: ${data['pilot_name'] ?? '-'}',
                 style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
               const SizedBox(height: 8),
@@ -394,7 +427,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      data['pelabuhan'],
+                      '${data['from_where']} → ${data['to_where']}',
                       style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     ),
                   ),
@@ -406,7 +439,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    '${data['tanggal']} • ${data['waktu']}',
+                    _formatDateTime(data['pilot_on_board']),
                     style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                   ),
                 ],
@@ -482,13 +515,15 @@ class _PemanduanPageState extends State<PemanduanPage> {
             children: [
               TextField(decoration: InputDecoration(labelText: 'Nama Kapal')),
               SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Call Sign')),
+              TextField(decoration: InputDecoration(labelText: 'Nama Pandu')),
               SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Pelabuhan Asal')),
+              TextField(decoration: InputDecoration(labelText: 'Dari (Pelabuhan)')),
               SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Pelabuhan Tujuan')),
+              TextField(decoration: InputDecoration(labelText: 'Ke (Pelabuhan)')),
               SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Tanggal & Waktu')),
+              TextField(decoration: InputDecoration(labelText: 'Tanggal')),
+              SizedBox(height: 12),
+              TextField(decoration: InputDecoration(labelText: 'Waktu Pilot On Board')),
             ],
           ),
         ),
@@ -516,19 +551,22 @@ class _PemanduanPageState extends State<PemanduanPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Detail ${data['no']}'),
+        title: Text('Detail Pemanduan ID: ${data['id']}'),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDetailRow('Nama Kapal', data['kapal']),
-              _buildDetailRow('Jenis', data['jenis']),
-              _buildDetailRow('Rute', data['pelabuhan']),
-              _buildDetailRow('Tanggal', data['tanggal']),
-              _buildDetailRow('Waktu', data['waktu']),
-              _buildDetailRow('Status', data['status']),
-              _buildDetailRow('Pandu', data['pandu']),
+              _buildDetailRow('Nama Kapal', data['vessel_name'] ?? '-'),
+              _buildDetailRow('Pandu', data['pilot_name'] ?? '-'),
+              _buildDetailRow('Dari', data['from_where'] ?? '-'),
+              _buildDetailRow('Ke', data['to_where'] ?? '-'),
+              _buildDetailRow('Tanggal', _formatDate(data['tanggal'])),
+              _buildDetailRow('Pilot On Board', _formatDateTime(data['pilot_on_board'])),
+              _buildDetailRow('Pilot Finished', _formatDateTime(data['pilot_finished'])),
+              _buildDetailRow('Vessel Start', _formatDateTime(data['vessel_start'])),
+              _buildDetailRow('Pilot Get Off', _formatDateTime(data['pilot_get_off'])),
+              _buildDetailRow('Status', data['status'] ?? '-'),
             ],
           ),
         ),
@@ -549,7 +587,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
+            width: 120,
             child: Text(
               label,
               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -567,7 +605,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Edit ${data['no']}'),
+        title: Text('Edit Pemanduan ID: ${data['id']}'),
         content: const Text('Form edit akan ditampilkan di sini'),
         actions: [
           TextButton(
@@ -589,12 +627,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
   }
 
   // ✅ Konfirmasi Hapus
-  void _showDeleteConfirmation(BuildContext context, String no) {
+  void _showDeleteConfirmation(BuildContext context, String id) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Hapus Pemanduan'),
-        content: Text('Apakah Anda yakin ingin menghapus $no?'),
+        content: Text('Apakah Anda yakin ingin menghapus pemanduan ID: $id?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
