@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 try {
-    require_once __DIR__ . "/../config/config.php";
+    require_once __DIR__ . "/../backend/config/config.php";
 
     $status = $_GET['status'] ?? '';
     $search = $_GET['search'] ?? '';

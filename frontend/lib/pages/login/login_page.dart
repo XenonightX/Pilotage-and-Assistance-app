@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:pilotage_and_assistance_app/widgets/navbar/navbar.dart';
 import 'package:pilotage_and_assistance_app/pages/register/register_page.dart';
-import 'package:pilotage_and_assistance_app/pages/login/forgot_password_page.dart'; // ✅ Import forgot password
+import 'package:pilotage_and_assistance_app/pages/login/forgot_password_page.dart';
+import 'package:pilotage_and_assistance_app/utils/user_session.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -37,8 +37,8 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final response = await http.post(
         Uri.parse(
-            'http://192.168.0.9/pilotage_and_assistance_app/backend/auth/login.php'), //ip kantor
-            // 'http://192.168.1.8/pilotage_and_assistance_app/backend/auth/login.php'), //ip wifi rumah
+          'http://192.168.0.9/pilotage_and_assistance_app/backend/auth/login.php',
+        ),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"email": email, "password": password}),
       );
@@ -50,44 +50,42 @@ class _LoginPageState extends State<LoginPage> {
         final result = jsonDecode(response.body);
 
         if (result['status'] == 'success' && result['data'] != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('isLoggedIn', true);
-          await prefs.setInt('userId', result['data']['id'] ?? 0);
-          await prefs.setString('userName', result['data']['name'] ?? 'User');
-          await prefs.setString('userEmail', result['data']['email'] ?? '');
-          await prefs.setString('userRole', result['data']['role'] ?? '');
+          final userData = result['data'];
 
+          // ✅ Simpan data user ke session
+          UserSession.setUser(
+            id: userData['id'],
+            name: userData['name'],
+            email: userData['email'],
+            role: userData['role'],
+          );
+
+          // ✅ Navigasi ke halaman utama
           if (mounted) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const ResponsiveNavBarPage()),
+              MaterialPageRoute(
+                builder: (context) => const ResponsiveNavBarPage(),
+              ),
             );
           }
         } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(result['message'] ?? "Login gagal")),
-            );
-          }
-        }
-      } else {
-        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Server error: ${response.statusCode}")),
+            SnackBar(content: Text(result['message'] ?? "Login gagal")),
           );
         }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Server error: ${response.statusCode}")),
+        );
       }
     } catch (e) {
       print('Error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal terhubung ke server: $e")),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal terhubung ke server: $e")),
+      );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -175,7 +173,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      // ✅ Navigasi ke halaman Forgot Password
                       Navigator.push(
                         context,
                         MaterialPageRoute(

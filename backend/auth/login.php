@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 try {
     // Path relatif dari backend/auth/ ke config/
-    require_once __DIR__ . "/../../config/config.php";
+    require_once __DIR__ . "/../config/config.php";
 
     if (!isset($conn) || $conn->connect_error) {
         throw new Exception("Database connection failed");

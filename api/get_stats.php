@@ -9,7 +9,7 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 try {
-    require_once __DIR__ . "/../config/config.php";
+require_once __DIR__ . "/../backend/config/config.php";
 
     if (!isset($conn) || $conn->connect_error) {
         throw new Exception("Database connection failed");
