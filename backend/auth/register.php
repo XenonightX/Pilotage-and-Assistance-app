@@ -3,7 +3,7 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
-require_once "../config/config.php";
+require_once "../../config/config.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 $name = $data["name"] ?? '';

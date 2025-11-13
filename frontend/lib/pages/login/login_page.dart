@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:pilotage_assistance_app/widgets/navbar/navbar.dart';
-import 'package:pilotage_assistance_app/pages/register/register_page.dart';
-import 'package:pilotage_assistance_app/pages/login/forgot_password_page.dart'; // ✅ Import forgot password
+import 'package:pilotage_and_assistance_app/widgets/navbar/navbar.dart';
+import 'package:pilotage_and_assistance_app/pages/register/register_page.dart';
+import 'package:pilotage_and_assistance_app/pages/login/forgot_password_page.dart'; // ✅ Import forgot password
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

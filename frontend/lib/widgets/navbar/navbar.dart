@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:pilotage_assistance_app/pages/profile/profile_page.dart';
+import 'package:pilotage_and_assistance_app/pages/profile/profile_page.dart';
 import '../../pages/settings/settings_page.dart';
 import '../../pages/pemanduan_page.dart';
 import '../../pages/penundaan_page.dart';

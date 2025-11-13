@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:pilotage_assistance_app/pages/profile/edit_profile_page.dart';
-import 'package:pilotage_assistance_app/pages/profile/change_password_page.dart'; // ✅ Import change password page
+import 'package:pilotage_and_assistance_app/pages/profile/edit_profile_page.dart';
+import 'package:pilotage_and_assistance_app/pages/profile/change_password_page.dart'; // ✅ Import change password page
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});

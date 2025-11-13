@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 class PemanduanPage extends StatefulWidget {
   const PemanduanPage({super.key});
@@ -10,49 +12,199 @@ class PemanduanPage extends StatefulWidget {
 class _PemanduanPageState extends State<PemanduanPage> {
   String _selectedFilter = 'Semua';
   final TextEditingController _searchController = TextEditingController();
+  
+  // ✅ Data dari API
+  List<Map<String, dynamic>> _pemanduanList = [];
+  bool _isLoading = true;
+  
+  // ✅ Stats data
+  Map<String, dynamic> _stats = {
+    'total': '0',
+    'active': '0',
+    'completed': '0',
+    'scheduled': '0'
+  };
 
-  // Dummy data sesuai struktur database
-  final List<Map<String, dynamic>> _pemanduanList = [
-    {
-      'id': 1,
-      'pilot_name': 'Capt. Ahmad',
-      'from_where': 'Pelabuhan Dumai',
-      'to_where': 'Singapura',
-      'pilot_on_board': '2025-11-09 10:00:00',
-      'pilot_finished': '2025-11-09 14:00:00',
-      'tanggal': '2025-11-09',
-      'vessel_start': '2025-11-09 09:45:00',
-      'pilot_get_off': '2025-11-09 14:15:00',
-      'vessel_name': 'MV Ocean Star',
-      'status': 'Aktif',
-    },
-    {
-      'id': 2,
-      'pilot_name': 'Capt. Budi',
-      'from_where': 'Singapura',
-      'to_where': 'Pelabuhan Dumai',
-      'pilot_on_board': '2025-11-09 14:30:00',
-      'pilot_finished': null,
-      'tanggal': '2025-11-09',
-      'vessel_start': '2025-11-09 14:15:00',
-      'pilot_get_off': null,
-      'vessel_name': 'MT Marine Tanker',
-      'status': 'Terjadwal',
-    },
-    {
-      'id': 3,
-      'pilot_name': 'Capt. Chandra',
-      'from_where': 'Pelabuhan Dumai',
-      'to_where': 'Malaysia',
-      'pilot_on_board': '2025-11-09 08:00:00',
-      'pilot_finished': '2025-11-09 12:00:00',
-      'tanggal': '2025-11-09',
-      'vessel_start': '2025-11-09 07:45:00',
-      'pilot_get_off': '2025-11-09 12:15:00',
-      'vessel_name': 'MV Cargo Express',
-      'status': 'Selesai',
-    },
-  ];
+  // ✅ Base URL - GANTI DENGAN IP KAMU!
+  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  // ✅ Load semua data (pilotages + stats)
+  Future<void> _loadData() async {
+    await Future.wait([
+      _fetchPilotages(),
+      _fetchStats(),
+    ]);
+  }
+
+  // ✅ Fetch data pilotages dari API
+  Future<void> _fetchPilotages() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      final uri = Uri.parse('$baseUrl/get_pilotages.php').replace(queryParameters: {
+        'status': _selectedFilter != 'Semua' ? _selectedFilter : '',
+        'search': _searchController.text,
+      });
+
+      final response = await http.get(uri);
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        
+        if (result['status'] == 'success') {
+          setState(() {
+            _pemanduanList = List<Map<String, dynamic>>.from(result['data']);
+            _isLoading = false;
+          });
+        } else {
+          throw Exception(result['message'] ?? 'Failed to load data');
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching pilotages: $e');
+      setState(() => _isLoading = false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat data: $e')),
+        );
+      }
+    }
+  }
+
+  // ✅ Fetch statistics dari API
+  Future<void> _fetchStats() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/get_stats.php'));
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        
+        if (result['status'] == 'success') {
+          setState(() {
+            _stats = {
+              'total': result['data']['total'].toString(),
+              'active': result['data']['active'].toString(),
+              'completed': result['data']['completed'].toString(),
+              'scheduled': result['data']['scheduled'].toString(),
+            };
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching stats: $e');
+    }
+  }
+
+  // ✅ Tambah data pilotage
+  Future<void> _addPilotages(Map<String, dynamic> data) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/add_pilotages.php'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(data),
+      );
+
+      final result = jsonDecode(response.body);
+
+      if (result['status'] == 'success') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data berhasil ditambahkan!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        _loadData(); // Reload data
+      } else {
+        throw Exception(result['message']);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menambahkan data: $e')),
+        );
+      }
+    }
+  }
+
+  // ✅ Update data pilotage
+  Future<void> _updatePilotages(Map<String, dynamic> data) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/update_pilotages.php'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(data),
+      );
+
+      final result = jsonDecode(response.body);
+
+      if (result['status'] == 'success') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data berhasil diupdate!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        _loadData(); // Reload data
+      } else {
+        throw Exception(result['message']);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengupdate data: $e')),
+        );
+      }
+    }
+  }
+
+  // ✅ Delete data pilotage
+  Future<void> _deletePilotages(int id) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/delete_pilotages.php'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"id": id}),
+      );
+
+      final result = jsonDecode(response.body);
+
+      if (result['status'] == 'success') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data berhasil dihapus!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        _loadData(); // Reload data
+      } else {
+        throw Exception(result['message']);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus data: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,121 +218,163 @@ class _PemanduanPageState extends State<PemanduanPage> {
           // ✅ Body Content
           Positioned.fill(
             top: 100,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ✅ Dashboard Cards
-                  isLargeScreen
-                      ? Row(
-                          children: [
-                            Expanded(child: _buildStatCard('Total Hari Ini', '12', Icons.assessment, Colors.blue)),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildStatCard('Aktif', '3', Icons.sailing, Colors.orange)),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildStatCard('Selesai', '7', Icons.check_circle, Colors.green)),
-                            const SizedBox(width: 16),
-                            Expanded(child: _buildStatCard('Terjadwal', '2', Icons.schedule, Colors.purple)),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(child: _buildStatCard('Total Hari Ini', '12', Icons.assessment, Colors.blue)),
-                                const SizedBox(width: 12),
-                                Expanded(child: _buildStatCard('Aktif', '3', Icons.sailing, Colors.orange)),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(child: _buildStatCard('Selesai', '7', Icons.check_circle, Colors.green)),
-                                const SizedBox(width: 12),
-                                Expanded(child: _buildStatCard('Terjadwal', '2', Icons.schedule, Colors.purple)),
-                              ],
-                            ),
-                          ],
-                        ),
-                  const SizedBox(height: 30),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ✅ Dashboard Cards
+                          isLargeScreen
+                              ? Row(
+                                  children: [
+                                    Expanded(child: _buildStatCard('Total Hari Ini', _stats['total']!, Icons.assessment, Colors.blue)),
+                                    const SizedBox(width: 16),
+                                    Expanded(child: _buildStatCard('Aktif', _stats['active']!, Icons.sailing, Colors.orange)),
+                                    const SizedBox(width: 16),
+                                    Expanded(child: _buildStatCard('Selesai', _stats['completed']!, Icons.check_circle, Colors.green)),
+                                    const SizedBox(width: 16),
+                                    Expanded(child: _buildStatCard('Terjadwal', _stats['scheduled']!, Icons.schedule, Colors.purple)),
+                                  ],
+                                )
+                              : Column(
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(child: _buildStatCard('Total Hari Ini', _stats['total']!, Icons.assessment, Colors.blue)),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: _buildStatCard('Aktif', _stats['active']!, Icons.sailing, Colors.orange)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(child: _buildStatCard('Selesai', _stats['completed']!, Icons.check_circle, Colors.green)),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: _buildStatCard('Terjadwal', _stats['scheduled']!, Icons.schedule, Colors.purple)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                          const SizedBox(height: 30),
 
-                  // ✅ Search & Filter Bar
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Cari nama kapal atau nama pandu...',
-                            prefixIcon: const Icon(Icons.search),
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
+                          // ✅ Search & Filter Bar
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              SizedBox(
+                                width: isLargeScreen ? 400 : double.infinity,
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Cari nama kapal atau nama pandu...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                  onChanged: (value) {
+                                    // Debounce search
+                                    Future.delayed(const Duration(milliseconds: 500), () {
+                                      if (_searchController.text == value) {
+                                        _fetchPilotages();
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: DropdownButton<String>(
+                                  value: _selectedFilter,
+                                  underline: const SizedBox(),
+                                  icon: const Icon(Icons.filter_list),
+                                  items: ['Semua', 'Aktif', 'Terjadwal', 'Selesai']
+                                      .map((filter) => DropdownMenuItem(
+                                            value: filter,
+                                            child: Text(filter),
+                                          ))
+                                      .toList(),
+                                  onChanged: (value) {
+                                    setState(() => _selectedFilter = value!);
+                                    _fetchPilotages();
+                                  },
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () => _showAddPemanduanDialog(context),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Tambah'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          onChanged: (value) => setState(() {}),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: DropdownButton<String>(
-                          value: _selectedFilter,
-                          underline: const SizedBox(),
-                          icon: const Icon(Icons.filter_list),
-                          items: ['Semua', 'Aktif', 'Terjadwal', 'Selesai']
-                              .map((filter) => DropdownMenuItem(
-                                    value: filter,
-                                    child: Text(filter),
-                                  ))
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() => _selectedFilter = value!);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: () => _showAddPemanduanDialog(context),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Tambah'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                          const SizedBox(height: 24),
 
-                  // ✅ Daftar Pemanduan
-                  const Text(
-                    'Daftar Pemanduan',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color.fromRGBO(12, 10, 80, 1),
+                          // ✅ Daftar Pemanduan
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Daftar Pemanduan',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color.fromRGBO(12, 10, 80, 1),
+                                ),
+                              ),
+                              Text(
+                                '${_pemanduanList.length} data',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // ✅ Table/Cards
+                          _pemanduanList.isEmpty
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(40.0),
+                                    child: Column(
+                                      children: [
+                                        Icon(Icons.inbox, size: 80, color: Colors.grey[400]),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Tidak ada data',
+                                          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : (isLargeScreen ? _buildTable() : _buildCardList()),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // ✅ Table/Cards
-                  isLargeScreen ? _buildTable() : _buildCardList(),
-                ],
-              ),
-            ),
           ),
 
           // ✅ Navbar
@@ -222,6 +416,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           fontSize: 20,
                         ),
                       ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        onPressed: _loadData,
+                        tooltip: 'Refresh',
+                      ),
                     ],
                   ),
                 ),
@@ -251,18 +451,13 @@ class _PemanduanPageState extends State<PemanduanPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 12),
           Text(
@@ -288,7 +483,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   // Helper: Format DateTime
   String _formatDateTime(String? dateTime) {
-    if (dateTime == null) return '-';
+    if (dateTime == null || dateTime.isEmpty) return '-';
     try {
       final dt = DateTime.parse(dateTime);
       return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
@@ -298,7 +493,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
   }
 
   String _formatDate(String? date) {
-    if (date == null) return '-';
+    if (date == null || date.isEmpty) return '-';
     try {
       final dt = DateTime.parse(date);
       final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -362,7 +557,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                      onPressed: () => _showDeleteConfirmation(context, data['id'].toString()),
+                      onPressed: () => _showDeleteConfirmation(context, data['id']),
                       tooltip: 'Hapus',
                     ),
                   ],
@@ -427,7 +622,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      '${data['from_where']} → ${data['to_where']}',
+                      '${data['from_where'] ?? '-'} → ${data['to_where'] ?? '-'}',
                       style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     ),
                   ),
@@ -503,45 +698,193 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Dialog Tambah Pemanduan
+  // ✅ Dialog Tambah Pemanduan dengan Date & Time Picker
   void _showAddPemanduanDialog(BuildContext context) {
+    final vesselController = TextEditingController();
+    final pilotController = TextEditingController();
+    final fromController = TextEditingController();
+    final toController = TextEditingController();
+    final dateController = TextEditingController();
+    final timeController = TextEditingController();
+    
+    DateTime? selectedDate;
+    TimeOfDay? selectedTime;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tambah Pemanduan Baru'),
-        content: const SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(decoration: InputDecoration(labelText: 'Nama Kapal')),
-              SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Nama Pandu')),
-              SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Dari (Pelabuhan)')),
-              SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Ke (Pelabuhan)')),
-              SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Tanggal')),
-              SizedBox(height: 12),
-              TextField(decoration: InputDecoration(labelText: 'Waktu Pilot On Board')),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Tambah Pemanduan Baru'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: vesselController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Kapal',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.directions_boat),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: pilotController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Pandu',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: fromController,
+                    decoration: const InputDecoration(
+                      labelText: 'Dari (Pelabuhan)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_on),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: toController,
+                    decoration: const InputDecoration(
+                      labelText: 'Ke (Pelabuhan)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.place),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: dateController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tanggal',
+                      hintText: 'Pilih tanggal',
+                      border: OutlineInputBorder(),
+                      suffixIcon: Icon(Icons.calendar_today),
+                    ),
+                    readOnly: true,
+                    onTap: () async {
+                      final DateTime? picked = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2030),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: const ColorScheme.light(
+                                primary: Color.fromRGBO(0, 40, 120, 1),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      
+                      if (picked != null) {
+                        setState(() {
+                          selectedDate = picked;
+                          // Format untuk tampilan: DD-MM-YYYY
+                          final displayDate = '${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}';
+                          dateController.text = displayDate;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: timeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Waktu Pilot On Board',
+                      hintText: 'Pilih waktu',
+                      border: OutlineInputBorder(),
+                      suffixIcon: Icon(Icons.access_time),
+                    ),
+                    readOnly: true,
+                    onTap: () async {
+                      final TimeOfDay? picked = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.now(),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: const ColorScheme.light(
+                                primary: Color.fromRGBO(0, 40, 120, 1),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      
+                      if (picked != null) {
+                        setState(() {
+                          selectedTime = picked;
+                          final hour = picked.hour.toString().padLeft(2, '0');
+                          final minute = picked.minute.toString().padLeft(2, '0');
+                          timeController.text = '$hour:$minute';
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  // Validasi
+                  if (vesselController.text.isEmpty || 
+                      pilotController.text.isEmpty || 
+                      fromController.text.isEmpty || 
+                      toController.text.isEmpty || 
+                      selectedDate == null || 
+                      selectedTime == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Semua field harus diisi!'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  // Format tanggal untuk database: YYYY-MM-DD
+                  final dbDate = '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
+                  
+                  // Format waktu: HH:MM:SS
+                  final dbTime = '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00';
+
+                  final data = {
+                    "vessel_name": vesselController.text,
+                    "pilot_name": pilotController.text,
+                    "from_where": fromController.text,
+                    "to_where": toController.text,
+                    "tanggal": dbDate,
+                    "pilot_on_board": '$dbDate $dbTime',
+                    "status": "Terjadwal",
+                  };
+                  
+                  print('Data yang dikirim: $data');
+                  
+                  Navigator.pop(context);
+                  await _addPilotages(data);
+                },
+                child: const Text('Simpan'),
+              ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Pemanduan berhasil ditambahkan!')),
-              );
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -602,63 +945,118 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   // ✅ Dialog Edit
   void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
+    final vesselController = TextEditingController(text: data['vessel_name']);
+    final pilotController = TextEditingController(text: data['pilot_name']);
+    final fromController = TextEditingController(text: data['from_where']);
+    final toController = TextEditingController(text: data['to_where']);
+    String selectedStatus = data['status'] ?? 'Terjadwal';
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Edit Pemanduan ID: ${data['id']}'),
-        content: const Text('Form edit akan ditampilkan di sini'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Data berhasil diupdate!')),
-              );
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Edit Pemanduan ID: ${data['id']}'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: vesselController,
+                    decoration: const InputDecoration(labelText: 'Nama Kapal'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: pilotController,
+                    decoration: const InputDecoration(labelText: 'Nama Pandu'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: fromController,
+                    decoration: const InputDecoration(labelText: 'Dari (Pelabuhan)'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: toController,
+                    decoration: const InputDecoration(labelText: 'Ke (Pelabuhan)'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedStatus,
+                    decoration: const InputDecoration(labelText: 'Status'),
+                    items: ['Terjadwal', 'Aktif', 'Selesai']
+                        .map((status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(status),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedStatus = value!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final updateData = {
+                    "id": data['id'],
+                    "vessel_name": vesselController.text,
+                    "pilot_name": pilotController.text,
+                    "from_where": fromController.text,
+                    "to_where": toController.text,
+                    "tanggal": data['tanggal'],
+                    "pilot_on_board": data['pilot_on_board'],
+                    "pilot_finished": data['pilot_finished'],
+                    "vessel_start": data['vessel_start'],
+                    "pilot_get_off": data['pilot_get_off'],
+                    "status": selectedStatus,
+                  };
+                  
+                  Navigator.pop(context);
+                  await _updatePilotages(updateData);
+                },
+                child: const Text('Update'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  // ✅ Konfirmasi Hapus
-  void _showDeleteConfirmation(BuildContext context, String id) {
+  // ✅ Dialog Konfirmasi Hapus
+  void _showDeleteConfirmation(BuildContext context, int id) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Hapus Pemanduan'),
-        content: Text('Apakah Anda yakin ingin menghapus pemanduan ID: $id?'),
+        title: const Text('Konfirmasi Hapus'),
+        content: const Text('Apakah Anda yakin ingin menghapus data ini?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Data berhasil dihapus!'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              await _deletePilotages(id);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Hapus'),
           ),
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 }
