@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:pilotage_and_assistance_app/utils/user_session.dart';
 
 class PemanduanPage extends StatefulWidget {
   const PemanduanPage({super.key});
@@ -481,17 +482,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // Helper: Format DateTime
-  String _formatDateTime(String? dateTime) {
-    if (dateTime == null || dateTime.isEmpty) return '-';
-    try {
-      final dt = DateTime.parse(dateTime);
-      return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return dateTime;
-    }
-  }
-
   String _formatDate(String? date) {
     if (date == null || date.isEmpty) return '-';
     try {
@@ -500,6 +490,17 @@ class _PemanduanPageState extends State<PemanduanPage> {
       return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (e) {
       return date;
+    }
+  }
+
+  // Helper: Format Time Only (hanya jam)
+  String _formatTimeOnly(String? dateTime) {
+    if (dateTime == null || dateTime.isEmpty) return '-';
+    try {
+      final dt = DateTime.parse(dateTime);
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTime;
     }
   }
 
@@ -528,7 +529,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
             DataColumn(label: Text('Dari', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Ke', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Tanggal', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Pilot On Board', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Pandu Naik Ke Kapal', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Aksi', style: TextStyle(fontWeight: FontWeight.bold))),
           ],
@@ -540,7 +541,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
               DataCell(Text(data['from_where'] ?? '-', style: const TextStyle(fontSize: 12))),
               DataCell(Text(data['to_where'] ?? '-', style: const TextStyle(fontSize: 12))),
               DataCell(Text(_formatDate(data['tanggal']), style: const TextStyle(fontSize: 12))),
-              DataCell(Text(_formatDateTime(data['pilot_on_board']), style: const TextStyle(fontSize: 12))),
+              DataCell(Text(_formatTimeOnly(data['pilot_on_board']), style: const TextStyle(fontSize: 12))),
               DataCell(_buildStatusBadge(data['status'] ?? 'Terjadwal')),
               DataCell(
                 Row(
@@ -634,7 +635,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    _formatDateTime(data['pilot_on_board']),
+                    _formatDate(data['tanggal']),
                     style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                   ),
                 ],
@@ -698,10 +699,15 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Dialog Tambah Pemanduan dengan Date & Time Picker
+  // ✅ Dialog Tambah Pemanduan dengan Date & Time Picker + AUTO-FILL PILOT NAME
   void _showAddPemanduanDialog(BuildContext context) {
     final vesselController = TextEditingController();
-    final pilotController = TextEditingController();
+    
+    // ✅ AUTO-FILL: Nama pandu diambil dari UserSession
+    final pilotController = TextEditingController(
+      text: UserSession.userName ?? ''
+    );
+    
     final fromController = TextEditingController();
     final toController = TextEditingController();
     final dateController = TextEditingController();
@@ -709,6 +715,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
     
     DateTime? selectedDate;
     TimeOfDay? selectedTime;
+
+    // ✅ Cek apakah user adalah pilot
+    final bool isPilot = UserSession.isPilot();
 
     showDialog(
       context: context,
@@ -729,15 +738,24 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  
+                  // ✅ Field Nama Pandu - READ ONLY jika user adalah pilot
                   TextField(
                     controller: pilotController,
-                    decoration: const InputDecoration(
+                    readOnly: isPilot, // Tidak bisa diedit jika user = pilot
+                    decoration: InputDecoration(
                       labelText: 'Nama Pandu',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.person),
+                      filled: isPilot,
+                      fillColor: isPilot ? Colors.grey[200] : null,
+                      suffixIcon: isPilot 
+                        ? const Icon(Icons.lock, size: 18, color: Colors.grey)
+                        : null,
                     ),
                   ),
                   const SizedBox(height: 12),
+                  
                   TextField(
                     controller: fromController,
                     decoration: const InputDecoration(
@@ -786,7 +804,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       if (picked != null) {
                         setState(() {
                           selectedDate = picked;
-                          // Format untuk tampilan: DD-MM-YYYY
                           final displayDate = '${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}';
                           dateController.text = displayDate;
                         });
@@ -905,10 +922,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
               _buildDetailRow('Dari', data['from_where'] ?? '-'),
               _buildDetailRow('Ke', data['to_where'] ?? '-'),
               _buildDetailRow('Tanggal', _formatDate(data['tanggal'])),
-              _buildDetailRow('Pilot On Board', _formatDateTime(data['pilot_on_board'])),
-              _buildDetailRow('Pilot Finished', _formatDateTime(data['pilot_finished'])),
-              _buildDetailRow('Vessel Start', _formatDateTime(data['vessel_start'])),
-              _buildDetailRow('Pilot Get Off', _formatDateTime(data['pilot_get_off'])),
+              _buildDetailRow('Pilot On Board', _formatTimeOnly(data['pilot_on_board'])),
+              _buildDetailRow('Pilot Finished', _formatTimeOnly(data['pilot_finished'])),
+              _buildDetailRow('Vessel Start', _formatTimeOnly(data['vessel_start'])),
+              _buildDetailRow('Pilot Get Off', _formatTimeOnly(data['pilot_get_off'])),
               _buildDetailRow('Status', data['status'] ?? '-'),
             ],
           ),

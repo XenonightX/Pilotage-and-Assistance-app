@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pilotage_and_assistance_app/widgets/navbar/navbar.dart';
 import 'package:pilotage_and_assistance_app/pages/register/register_page.dart';
 import 'package:pilotage_and_assistance_app/pages/login/forgot_password_page.dart';
@@ -20,7 +21,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _isObscure = true;
   bool _isLoading = false;
 
-  // ✅ Fungsi Login
+  // ✅ Fungsi Login dengan SharedPreferences
   Future<void> _login() async {
     String email = _userController.text.trim();
     String password = _passController.text.trim();
@@ -52,13 +53,27 @@ class _LoginPageState extends State<LoginPage> {
         if (result['status'] == 'success' && result['data'] != null) {
           final userData = result['data'];
 
-          // ✅ Simpan data user ke session
+          // ✅ 1. Simpan ke UserSession (untuk akses cepat di memory)
           UserSession.setUser(
             id: userData['id'],
             name: userData['name'],
             email: userData['email'],
             role: userData['role'],
           );
+
+          // ✅ 2. Simpan ke SharedPreferences (untuk persistent storage)
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('userId', userData['id']);
+          await prefs.setString('userName', userData['name']);
+          await prefs.setString('userEmail', userData['email']);
+          await prefs.setString('userRole', userData['role']);
+          await prefs.setBool('isLoggedIn', true);
+
+          print('✅ Data berhasil disimpan:');
+          print('User ID: ${userData['id']}');
+          print('Name: ${userData['name']}');
+          print('Email: ${userData['email']}');
+          print('Role: ${userData['role']}');
 
           // ✅ Navigasi ke halaman utama
           if (mounted) {
