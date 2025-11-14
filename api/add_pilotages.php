@@ -27,24 +27,24 @@ try {
     $pilot_name = $data["pilot_name"] ?? '';
     $from_where = $data["from_where"] ?? '';
     $to_where = $data["to_where"] ?? '';
-    $tanggal = $data["tanggal"] ?? '';
+    $date = $data["date"] ?? '';
     $pilot_on_board = $data["pilot_on_board"] ?? '';
     $pilot_finished = $data["pilot_finished"] ?? null;
     $vessel_start = $data["vessel_start"] ?? null;
     $pilot_get_off = $data["pilot_get_off"] ?? null;
     $status = $data["status"] ?? 'Terjadwal';
 
-    if (empty($vessel_name) || empty($pilot_name) || empty($from_where) || empty($to_where) || empty($tanggal)) {
+    if (empty($vessel_name) || empty($pilot_name) || empty($from_where) || empty($to_where) || empty($date)) {
         throw new Exception("Data tidak lengkap");
     }
 
-    $sql = "INSERT INTO pilotage_logs (vessel_name, pilot_name, from_where, to_where, tanggal, pilot_on_board, pilot_finished, vessel_start, pilot_get_off, status) 
+    $sql = "INSERT INTO pilotage_logs (vessel_name, pilot_name, from_where, to_where, date, pilot_on_board, pilot_finished, vessel_start, pilot_get_off, status) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) throw new Exception("Prepare failed");
 
-    $stmt->bind_param("ssssssssss", $vessel_name, $pilot_name, $from_where, $to_where, $tanggal, $pilot_on_board, $pilot_finished, $vessel_start, $pilot_get_off, $status);
+    $stmt->bind_param("ssssssssss", $vessel_name, $pilot_name, $from_where, $to_where, $date, $pilot_on_board, $pilot_finished, $vessel_start, $pilot_get_off, $status);
 
     if ($stmt->execute()) {
         ob_end_clean();

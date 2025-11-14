@@ -28,7 +28,7 @@ try {
     $pilot_name = $data["pilot_name"] ?? '';
     $from_where = $data["from_where"] ?? '';
     $to_where = $data["to_where"] ?? '';
-    $tanggal = $data["tanggal"] ?? '';
+    $date = $data["date"] ?? '';
     $pilot_on_board = $data["pilot_on_board"] ?? '';
     $pilot_finished = $data["pilot_finished"] ?? null;
     $vessel_start = $data["vessel_start"] ?? null;
@@ -44,7 +44,7 @@ try {
             pilot_name = ?, 
             from_where = ?, 
             to_where = ?, 
-            tanggal = ?, 
+            date = ?, 
             pilot_on_board = ?, 
             pilot_finished = ?, 
             vessel_start = ?, 
@@ -55,7 +55,7 @@ try {
     $stmt = $conn->prepare($sql);
     if (!$stmt) throw new Exception("Prepare failed");
 
-    $stmt->bind_param("ssssssssssi", $vessel_name, $pilot_name, $from_where, $to_where, $tanggal, $pilot_on_board, $pilot_finished, $vessel_start, $pilot_get_off, $status, $id);
+    $stmt->bind_param("ssssssssssi", $vessel_name, $pilot_name, $from_where, $to_where, $date, $pilot_on_board, $pilot_finished, $vessel_start, $pilot_get_off, $status, $id);
 
     if ($stmt->execute()) {
         ob_end_clean();

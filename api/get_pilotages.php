@@ -38,7 +38,7 @@ try {
         $types .= "ss";
     }
 
-    $sql .= " ORDER BY tanggal DESC, pilot_on_board DESC";
+    $sql .= " ORDER BY date DESC, pilot_on_board DESC";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) throw new Exception("Prepare failed");

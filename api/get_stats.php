@@ -24,20 +24,20 @@ try {
         "current_datetime" => date('Y-m-d H:i:s')
     ];
 
-    // ✅ DEBUG: Cek total semua data di tabel (tanpa filter)
+    // ✅ DEBUG: Total semua data
     $sqlCountAll = "SELECT COUNT(*) as total FROM pilotage_logs";
     $resultCountAll = $conn->query($sqlCountAll);
     $debugInfo['total_all_records'] = $resultCountAll->fetch_assoc()['total'];
 
-    // ✅ DEBUG: Cek semua data di tabel dengan detail
-    $sqlAllData = "SELECT id, tanggal, DATE(tanggal) as tanggal_only, status FROM pilotage_logs ORDER BY id DESC LIMIT 10";
+    // ✅ DEBUG: Sample data terbaru
+    $sqlAllData = "SELECT id, DATE(date) as date_only, status FROM pilotage_logs ORDER BY id DESC LIMIT 10";
     $resultAllData = $conn->query($sqlAllData);
     $debugInfo['sample_data'] = [];
     while ($row = $resultAllData->fetch_assoc()) {
         $debugInfo['sample_data'][] = $row;
     }
 
-    // ✅ DEBUG: Cek count per status (tanpa filter tanggal)
+    // ✅ DEBUG: count per status
     $sqlCountByStatus = "SELECT status, COUNT(*) as count FROM pilotage_logs GROUP BY status";
     $resultCountByStatus = $conn->query($sqlCountByStatus);
     $debugInfo['count_by_status'] = [];
@@ -45,34 +45,39 @@ try {
         $debugInfo['count_by_status'][] = $row;
     }
 
-    $sqlTotal = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(tanggal) = ?";
+    // ======================================================
+    //               QUERY MENGGUNAKAN KOLOM "date"
+    // ======================================================
+
+    // Total hari ini
+    $sqlTotal = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = ?";
     $stmtTotal = $conn->prepare($sqlTotal);
-    if (!$stmtTotal) throw new Exception("Prepare failed: " . $conn->error);
     $stmtTotal->bind_param("s", $today);
     $stmtTotal->execute();
     $resultTotal = $stmtTotal->get_result()->fetch_assoc();
 
-    $sqlActive = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(tanggal) = ? AND status = 'Aktif'";
+    // Aktif
+    $sqlActive = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = ? AND status = 'Aktif'";
     $stmtActive = $conn->prepare($sqlActive);
-    if (!$stmtActive) throw new Exception("Prepare failed: " . $conn->error);
     $stmtActive->bind_param("s", $today);
     $stmtActive->execute();
     $resultActive = $stmtActive->get_result()->fetch_assoc();
 
-    $sqlCompleted = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(tanggal) = ? AND status = 'Selesai'";
+    // Selesai
+    $sqlCompleted = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = ? AND status = 'Selesai'";
     $stmtCompleted = $conn->prepare($sqlCompleted);
-    if (!$stmtCompleted) throw new Exception("Prepare failed: " . $conn->error);
     $stmtCompleted->bind_param("s", $today);
     $stmtCompleted->execute();
     $resultCompleted = $stmtCompleted->get_result()->fetch_assoc();
 
-    $sqlScheduled = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(tanggal) = ? AND status = 'Terjadwal'";
+    // Terjadwal
+    $sqlScheduled = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = ? AND status = 'Terjadwal'";
     $stmtScheduled = $conn->prepare($sqlScheduled);
-    if (!$stmtScheduled) throw new Exception("Prepare failed: " . $conn->error);
     $stmtScheduled->bind_param("s", $today);
     $stmtScheduled->execute();
     $resultScheduled = $stmtScheduled->get_result()->fetch_assoc();
 
+    // Output
     ob_end_clean();
     echo json_encode([
         "status" => "success",
@@ -82,7 +87,7 @@ try {
             "completed" => (int)($resultCompleted['total'] ?? 0),
             "scheduled" => (int)($resultScheduled['total'] ?? 0)
         ],
-        "debug" => $debugInfo // ✅ Info debug
+        "debug" => $debugInfo
     ]);
 
     $stmtTotal->close();

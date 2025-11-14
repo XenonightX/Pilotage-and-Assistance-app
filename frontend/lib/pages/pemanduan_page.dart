@@ -540,7 +540,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
               DataCell(Text(data['pilot_name'] ?? '-')),
               DataCell(Text(data['from_where'] ?? '-', style: const TextStyle(fontSize: 12))),
               DataCell(Text(data['to_where'] ?? '-', style: const TextStyle(fontSize: 12))),
-              DataCell(Text(_formatDate(data['tanggal']), style: const TextStyle(fontSize: 12))),
+              DataCell(Text(_formatDate(data['date']), style: const TextStyle(fontSize: 12))),
               DataCell(Text(_formatTimeOnly(data['pilot_on_board']), style: const TextStyle(fontSize: 12))),
               DataCell(_buildStatusBadge(data['status'] ?? 'Terjadwal')),
               DataCell(
@@ -635,7 +635,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    _formatDate(data['tanggal']),
+                    _formatDate(data['date']),
                     style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                   ),
                 ],
@@ -814,7 +814,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   TextField(
                     controller: timeController,
                     decoration: const InputDecoration(
-                      labelText: 'Waktu Pilot On Board',
+                      labelText: 'Waktu Pandu Naik Kapal',
                       hintText: 'Pilih waktu',
                       border: OutlineInputBorder(),
                       suffixIcon: Icon(Icons.access_time),
@@ -887,7 +887,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     "pilot_name": pilotController.text,
                     "from_where": fromController.text,
                     "to_where": toController.text,
-                    "tanggal": dbDate,
+                    "date": dbDate,
                     "pilot_on_board": '$dbDate $dbTime',
                     "status": "Terjadwal",
                   };
@@ -921,7 +921,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
               _buildDetailRow('Pandu', data['pilot_name'] ?? '-'),
               _buildDetailRow('Dari', data['from_where'] ?? '-'),
               _buildDetailRow('Ke', data['to_where'] ?? '-'),
-              _buildDetailRow('Tanggal', _formatDate(data['tanggal'])),
+              _buildDetailRow('Tanggal', _formatDate(data['date'])),
               _buildDetailRow('Pilot On Board', _formatTimeOnly(data['pilot_on_board'])),
               _buildDetailRow('Pilot Finished', _formatTimeOnly(data['pilot_finished'])),
               _buildDetailRow('Vessel Start', _formatTimeOnly(data['vessel_start'])),
@@ -998,6 +998,21 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     decoration: const InputDecoration(labelText: 'Ke (Pelabuhan)'),
                   ),
                   const SizedBox(height: 12),
+                  TextField(
+                    controller: toController,
+                    decoration: const InputDecoration(labelText: 'Kapal Selesai Dipandu'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: toController,
+                    decoration: const InputDecoration(labelText: 'Kapal Bergerak'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: toController,
+                    decoration: const InputDecoration(labelText: 'Pandu Turun'),
+                  ),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedStatus,
                     decoration: const InputDecoration(labelText: 'Status'),
@@ -1029,7 +1044,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     "pilot_name": pilotController.text,
                     "from_where": fromController.text,
                     "to_where": toController.text,
-                    "tanggal": data['tanggal'],
+                    "date": data['date'],
                     "pilot_on_board": data['pilot_on_board'],
                     "pilot_finished": data['pilot_finished'],
                     "vessel_start": data['vessel_start'],
