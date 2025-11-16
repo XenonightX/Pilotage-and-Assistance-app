@@ -14,11 +14,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
   String _selectedFilter = 'Semua';
   final TextEditingController _searchController = TextEditingController();
   
-  // ✅ Data dari API
   List<Map<String, dynamic>> _pemanduanList = [];
   bool _isLoading = true;
   
-  // ✅ Stats data
   Map<String, dynamic> _stats = {
     'total': '0',
     'active': '0',
@@ -26,8 +24,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
     'scheduled': '0'
   };
 
-  // ✅ Base URL - GANTI DENGAN IP KAMU!
-  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.1.20/pilotage_and_assistance_app/api';
 
   @override
   void initState() {
@@ -35,7 +32,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     _loadData();
   }
 
-  // ✅ Load semua data (pilotages + stats)
   Future<void> _loadData() async {
     await Future.wait([
       _fetchPilotages(),
@@ -43,7 +39,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     ]);
   }
 
-  // ✅ Fetch data pilotages dari API
   Future<void> _fetchPilotages() async {
     setState(() => _isLoading = true);
     
@@ -55,8 +50,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
       final response = await http.get(uri);
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      print('📋 Pilotages Response: ${response.statusCode}');
+      print('📋 Pilotages Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -73,7 +68,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
         throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching pilotages: $e');
+      print('❌ Error fetching pilotages: $e');
       setState(() => _isLoading = false);
       
       if (mounted) {
@@ -84,39 +79,72 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  // ✅ Fetch statistics dari API
   Future<void> _fetchStats() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/get_stats.php'));
 
+      print('📊 Stats Response Status: ${response.statusCode}');
+      print('📊 Stats Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         
+        print('📊 Decoded Result: $result');
+        
         if (result['status'] == 'success') {
+          final data = result['data'];
+          
           setState(() {
             _stats = {
-              'total': result['data']['total'].toString(),
-              'active': result['data']['active'].toString(),
-              'completed': result['data']['completed'].toString(),
-              'scheduled': result['data']['scheduled'].toString(),
+              'total': (data['total'] ?? 0).toString(),
+              'active': (data['active'] ?? 0).toString(),
+              'completed': (data['completed'] ?? 0).toString(),
+              'scheduled': (data['scheduled'] ?? 0).toString(),
+            };
+          });
+          
+          print('✅ Stats berhasil diupdate: $_stats');
+        } else {
+          print('⚠️ API returned error: ${result['message']}');
+          
+          setState(() {
+            _stats = {
+              'total': '0',
+              'active': '0',
+              'completed': '0',
+              'scheduled': '0'
             };
           });
         }
+      } else {
+        print('❌ Server error: ${response.statusCode}');
+        throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching stats: $e');
+      print('❌ Error fetching stats: $e');
+      
+      setState(() {
+        _stats = {
+          'total': '0',
+          'active': '0',
+          'completed': '0',
+          'scheduled': '0'
+        };
+      });
     }
   }
 
-  // ✅ Tambah data pilotage
   Future<void> _addPilotages(Map<String, dynamic> data) async {
     try {
+      print('🚀 Sending data: $data');
+      
       final response = await http.post(
         Uri.parse('$baseUrl/add_pilotages.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(data),
       );
 
+      print('📥 Add Response: ${response.body}');
       final result = jsonDecode(response.body);
 
       if (result['status'] == 'success') {
@@ -128,11 +156,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
             ),
           );
         }
-        _loadData(); // Reload data
+        _loadData();
       } else {
         throw Exception(result['message']);
       }
     } catch (e) {
+      print('❌ Error add: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal menambahkan data: $e')),
@@ -141,7 +170,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  // ✅ Update data pilotage
   Future<void> _updatePilotages(Map<String, dynamic> data) async {
     try {
       final response = await http.post(
@@ -161,7 +189,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
             ),
           );
         }
-        _loadData(); // Reload data
+        _loadData();
       } else {
         throw Exception(result['message']);
       }
@@ -174,7 +202,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  // ✅ Delete data pilotage
   Future<void> _deletePilotages(int id) async {
     try {
       final response = await http.post(
@@ -194,7 +221,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
             ),
           );
         }
-        _loadData(); // Reload data
+        _loadData();
       } else {
         throw Exception(result['message']);
       }
@@ -216,7 +243,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
       backgroundColor: const Color(0xFFF4F6FA),
       body: Stack(
         children: [
-          // ✅ Body Content
           Positioned.fill(
             top: 100,
             child: _isLoading
@@ -229,11 +255,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ✅ Dashboard Cards
                           isLargeScreen
                               ? Row(
                                   children: [
-                                    Expanded(child: _buildStatCard('Total Hari Ini', _stats['total']!, Icons.assessment, Colors.blue)),
+                                    Expanded(child: _buildStatCard('Total Pemanduan', _stats['total']!, Icons.assessment, Colors.blue)),
                                     const SizedBox(width: 16),
                                     Expanded(child: _buildStatCard('Aktif', _stats['active']!, Icons.sailing, Colors.orange)),
                                     const SizedBox(width: 16),
@@ -246,7 +271,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                   children: [
                                     Row(
                                       children: [
-                                        Expanded(child: _buildStatCard('Total Hari Ini', _stats['total']!, Icons.assessment, Colors.blue)),
+                                        Expanded(child: _buildStatCard('Total Pemanduan', _stats['total']!, Icons.assessment, Colors.blue)),
                                         const SizedBox(width: 12),
                                         Expanded(child: _buildStatCard('Aktif', _stats['active']!, Icons.sailing, Colors.orange)),
                                       ],
@@ -263,7 +288,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                 ),
                           const SizedBox(height: 30),
 
-                          // ✅ Search & Filter Bar
                           Wrap(
                             spacing: 12,
                             runSpacing: 12,
@@ -283,7 +307,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                     ),
                                   ),
                                   onChanged: (value) {
-                                    // Debounce search
                                     Future.delayed(const Duration(milliseconds: 500), () {
                                       if (_searchController.text == value) {
                                         _fetchPilotages();
@@ -331,7 +354,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           ),
                           const SizedBox(height: 24),
 
-                          // ✅ Daftar Pemanduan
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -354,7 +376,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          // ✅ Table/Cards
                           _pemanduanList.isEmpty
                               ? Center(
                                   child: Padding(
@@ -378,7 +399,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   ),
           ),
 
-          // ✅ Navbar
           Positioned(
             top: 0,
             left: 0,
@@ -434,7 +454,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Stat Card Widget
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -493,7 +512,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  // Helper: Format Time Only (hanya jam)
   String _formatTimeOnly(String? dateTime) {
     if (dateTime == null || dateTime.isEmpty) return '-';
     try {
@@ -504,7 +522,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  // ✅ Table untuk Desktop
   Widget _buildTable() {
     return Container(
       decoration: BoxDecoration(
@@ -529,7 +546,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
             DataColumn(label: Text('Dari', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Ke', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Tanggal', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Pandu Naik Ke Kapal', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Pilot On Board', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Aksi', style: TextStyle(fontWeight: FontWeight.bold))),
           ],
@@ -571,7 +588,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Card List untuk Mobile
   Widget _buildCardList() {
     return Column(
       children: _pemanduanList.map((data) {
@@ -635,7 +651,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    _formatDate(data['date']),
+                    _formatTimeOnly(data['pilot_on_board']),
                     style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                   ),
                 ],
@@ -665,7 +681,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Status Badge
   Widget _buildStatusBadge(String status) {
     Color color;
     switch (status) {
@@ -699,15 +714,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Dialog Tambah Pemanduan dengan Date & Time Picker + AUTO-FILL PILOT NAME
   void _showAddPemanduanDialog(BuildContext context) {
     final vesselController = TextEditingController();
-    
-    // ✅ AUTO-FILL: Nama pandu diambil dari UserSession
-    final pilotController = TextEditingController(
-      text: UserSession.userName ?? ''
-    );
-    
+    final pilotController = TextEditingController(text: UserSession.userName ?? '');
     final fromController = TextEditingController();
     final toController = TextEditingController();
     final dateController = TextEditingController();
@@ -715,8 +724,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     
     DateTime? selectedDate;
     TimeOfDay? selectedTime;
-
-    // ✅ Cek apakah user adalah pilot
     final bool isPilot = UserSession.isPilot();
 
     showDialog(
@@ -738,24 +745,19 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
-                  // ✅ Field Nama Pandu - READ ONLY jika user adalah pilot
                   TextField(
                     controller: pilotController,
-                    readOnly: isPilot, // Tidak bisa diedit jika user = pilot
+                    readOnly: isPilot,
                     decoration: InputDecoration(
                       labelText: 'Nama Pandu',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.person),
                       filled: isPilot,
                       fillColor: isPilot ? Colors.grey[200] : null,
-                      suffixIcon: isPilot 
-                        ? const Icon(Icons.lock, size: 18, color: Colors.grey)
-                        : null,
+                      suffixIcon: isPilot ? const Icon(Icons.lock, size: 18, color: Colors.grey) : null,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
                   TextField(
                     controller: fromController,
                     decoration: const InputDecoration(
@@ -814,7 +816,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   TextField(
                     controller: timeController,
                     decoration: const InputDecoration(
-                      labelText: 'Waktu Pandu Naik Kapal',
+                      labelText: 'Waktu Pilot On Board',
                       hintText: 'Pilih waktu',
                       border: OutlineInputBorder(),
                       suffixIcon: Icon(Icons.access_time),
@@ -860,7 +862,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () async {
-                  // Validasi
                   if (vesselController.text.isEmpty || 
                       pilotController.text.isEmpty || 
                       fromController.text.isEmpty || 
@@ -876,10 +877,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     return;
                   }
 
-                  // Format tanggal untuk database: YYYY-MM-DD
+                  // ✅ PENTING: Gunakan "date" bukan "tanggal" agar konsisten dengan get_stats.php
                   final dbDate = '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
-                  
-                  // Format waktu: HH:MM:SS
                   final dbTime = '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00';
 
                   final data = {
@@ -887,12 +886,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     "pilot_name": pilotController.text,
                     "from_where": fromController.text,
                     "to_where": toController.text,
-                    "date": dbDate,
+                    "date": dbDate,  // ✅ Gunakan "date"
                     "pilot_on_board": '$dbDate $dbTime',
                     "status": "Terjadwal",
                   };
                   
-                  print('Data yang dikirim: $data');
+                  print('📤 Data yang dikirim: $data');
                   
                   Navigator.pop(context);
                   await _addPilotages(data);
@@ -906,7 +905,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Dialog Detail
   void _showDetailDialog(BuildContext context, Map<String, dynamic> data) {
     showDialog(
       context: context,
@@ -960,7 +958,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Dialog Edit
   void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
     final vesselController = TextEditingController(text: data['vessel_name']);
     final pilotController = TextEditingController(text: data['pilot_name']);
@@ -998,21 +995,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     decoration: const InputDecoration(labelText: 'Ke (Pelabuhan)'),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: toController,
-                    decoration: const InputDecoration(labelText: 'Kapal Selesai Dipandu'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: toController,
-                    decoration: const InputDecoration(labelText: 'Kapal Bergerak'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: toController,
-                    decoration: const InputDecoration(labelText: 'Pandu Turun'),
-                  ),
-                  const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedStatus,
                     decoration: const InputDecoration(labelText: 'Status'),
@@ -1044,7 +1026,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     "pilot_name": pilotController.text,
                     "from_where": fromController.text,
                     "to_where": toController.text,
-                    "date": data['date'],
+                    "date": data['date'],  // ✅ Gunakan "date"
                     "pilot_on_board": data['pilot_on_board'],
                     "pilot_finished": data['pilot_finished'],
                     "vessel_start": data['vessel_start'],
@@ -1064,7 +1046,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  // ✅ Dialog Konfirmasi Hapus
   void _showDeleteConfirmation(BuildContext context, int id) {
     showDialog(
       context: context,

@@ -17,6 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 try {
     require_once __DIR__ . "/../backend/config/config.php";
 
+    if (!isset($conn) || $conn->connect_error) {
+        throw new Exception("Database connection failed");
+    }
+
     $status = $_GET['status'] ?? '';
     $search = $_GET['search'] ?? '';
 
@@ -38,10 +42,11 @@ try {
         $types .= "ss";
     }
 
-    $sql .= " ORDER BY date DESC, pilot_on_board DESC";
+    // ✅ Order by date DESC (terbaru dulu)
+    $sql .= " ORDER BY date DESC, pilot_on_board DESC, id DESC";
 
     $stmt = $conn->prepare($sql);
-    if (!$stmt) throw new Exception("Prepare failed");
+    if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
 
     if (!empty($params)) {
         $stmt->bind_param($types, ...$params);
