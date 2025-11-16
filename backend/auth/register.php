@@ -9,9 +9,17 @@ $data = json_decode(file_get_contents("php://input"), true);
 $name = $data["name"] ?? '';
 $email = $data["email"] ?? '';
 $password = $data["password"] ?? '';
+$role = $data["role"] ?? 'pilot';
 
+// Validasi input
 if (empty($name) || empty($email) || empty($password)) {
     echo json_encode(["status" => "error", "message" => "Semua field wajib diisi"]);
+    exit;
+}
+
+// ✅ Validasi role untuk ENUM
+if (!in_array($role, ['superadmin', 'admin', 'pilot', 'tugboat'])) {
+    echo json_encode(["status" => "error", "message" => "Role tidak valid"]);
     exit;
 }
 
@@ -26,16 +34,22 @@ if ($result->num_rows > 0) {
     exit;
 }
 
-// Simpan user baru (tanpa hash, bisa diganti password_hash nanti)
-$sql = "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'user')";
+// ✅ Simpan user baru dengan role (simple, tanpa vessel_name)
+// PENTING: Gunakan password_hash untuk keamanan (opsional tapi sangat disarankan)
+// $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+
+$sql = "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("sss", $name, $email, $password);
+$stmt->bind_param("ssss", $name, $email, $password, $role);
 
 if ($stmt->execute()) {
-    echo json_encode(["status" => "success", "message" => "Registrasi berhasil"]);
+    echo json_encode([
+        "status" => "success", 
+        "message" => "Registrasi berhasil sebagai " . ($role == 'pilot' ? 'Pilot' : 'Tugboats')
+    ]);
 } else {
-    echo json_encode(["status" => "error", "message" => "Gagal menyimpan data"]);
+    echo json_encode(["status" => "error", "message" => "Gagal menyimpan data: " . $stmt->error]);
 }
 
+$stmt->close();
 $conn->close();
-?>

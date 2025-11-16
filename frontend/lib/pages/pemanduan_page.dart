@@ -24,6 +24,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
     'scheduled': '0'
   };
 
+  // final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api'; IP wifi kantor
   final String baseUrl = 'http://192.168.1.20/pilotage_and_assistance_app/api';
 
   @override
