@@ -4,7 +4,7 @@ error_reporting(0);
 ob_start();
 
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, PUT, OPTIONS");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
@@ -23,11 +23,26 @@ try {
         throw new Exception("Invalid JSON data");
     }
 
-    $id = $data["id"] ?? 0;
+    $id = $data["id"] ?? null;
+    if (!$id) {
+        throw new Exception("ID is required");
+    }
+
+    // Field yang akan diupdate
     $vessel_name = $data["vessel_name"] ?? '';
+    $call_sign = $data["call_sign"] ?? null;
+    $master_name = $data["master_name"] ?? null;
+    $flag = $data["flag"] ?? '';
+    $gross_tonnage = $data["gross_tonnage"] ?? '';
+    $agency = $data["agency"] ?? '';
+    $loa = $data["loa"] ?? '';
+    $fore_draft = $data["fore_draft"] ?? null;
+    $aft_draft = $data["aft_draft"] ?? null;
     $pilot_name = $data["pilot_name"] ?? '';
     $from_where = $data["from_where"] ?? '';
     $to_where = $data["to_where"] ?? '';
+    $last_port = $data["last_port"] ?? '';
+    $next_port = $data["next_port"] ?? '';
     $date = $data["date"] ?? '';
     $pilot_on_board = $data["pilot_on_board"] ?? '';
     $pilot_finished = $data["pilot_finished"] ?? null;
@@ -35,27 +50,39 @@ try {
     $pilot_get_off = $data["pilot_get_off"] ?? null;
     $status = $data["status"] ?? 'Terjadwal';
 
-    if (empty($id) || empty($vessel_name) || empty($pilot_name)) {
-        throw new Exception("Data tidak lengkap");
-    }
-
     $sql = "UPDATE pilotage_logs SET 
-            vessel_name = ?, 
-            pilot_name = ?, 
-            from_where = ?, 
-            to_where = ?, 
-            date = ?, 
-            pilot_on_board = ?, 
-            pilot_finished = ?, 
-            vessel_start = ?, 
-            pilot_get_off = ?, 
-            status = ? 
+                vessel_name = ?, 
+                call_sign = ?, 
+                master_name = ?, 
+                flag = ?, 
+                gross_tonnage = ?, 
+                agency = ?, 
+                loa = ?, 
+                fore_draft = ?, 
+                aft_draft = ?, 
+                pilot_name = ?,
+                from_where = ?,
+                to_where = ?,
+                last_port = ?, 
+                next_port = ?, 
+                date = ?, 
+                pilot_on_board = ?,
+                pilot_finished = ?,
+                vessel_start = ?,
+                pilot_get_off = ?,
+                status = ?
             WHERE id = ?";
 
     $stmt = $conn->prepare($sql);
-    if (!$stmt) throw new Exception("Prepare failed");
+    if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
 
-    $stmt->bind_param("ssssssssssi", $vessel_name, $pilot_name, $from_where, $to_where, $date, $pilot_on_board, $pilot_finished, $vessel_start, $pilot_get_off, $status, $id);
+    $stmt->bind_param(
+        "ssssssssssssssssssssi",
+        $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
+        $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
+        $from_where, $to_where, $last_port, $next_port, $date, $pilot_on_board,
+        $pilot_finished, $vessel_start, $pilot_get_off, $status, $id
+    );
 
     if ($stmt->execute()) {
         ob_end_clean();
@@ -64,7 +91,7 @@ try {
             "message" => "Data berhasil diupdate"
         ]);
     } else {
-        throw new Exception("Execute failed");
+        throw new Exception("Execute failed: " . $stmt->error);
     }
 
     $stmt->close();

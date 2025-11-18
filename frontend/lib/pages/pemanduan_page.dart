@@ -24,13 +24,18 @@ class _PemanduanPageState extends State<PemanduanPage> {
     'scheduled': '0'
   };
 
-  // final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api'; IP wifi kantor
-  final String baseUrl = 'http://192.168.1.20/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -543,9 +548,18 @@ class _PemanduanPageState extends State<PemanduanPage> {
           columns: const [
             DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Nama Kapal', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Call Sign', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Nama Nahkoda', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Bendera', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('GT', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Keagenan', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('LOA', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Sarat Muka', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Sarat Belakang', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Pandu', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Dari', style: TextStyle(fontWeight: FontWeight.bold))),
-            DataColumn(label: Text('Ke', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Arah', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Pelabuhan Asal', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Pelabuhan Tujuan', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Tanggal', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Pilot On Board', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -555,9 +569,18 @@ class _PemanduanPageState extends State<PemanduanPage> {
             return DataRow(cells: [
               DataCell(Text(data['id'].toString())),
               DataCell(Text(data['vessel_name'] ?? '-')),
+              DataCell(Text(data['call_sign'] ?? '-')),
+              DataCell(Text(data['master_name'] ?? '-')),
+              DataCell(Text(data['flag'] ?? '-')),
+              DataCell(Text(data['gross_tonnage'] ?? '-')),
+              DataCell(Text(data['agency'] ?? '-')),
+              DataCell(Text(data['loa'] != null ? '${data['loa']} m' : '-', style: const TextStyle(fontSize: 12))),
+              DataCell(Text(data['fore_draft'] != null ? '${data['fore_draft']} m' : '-', style: const TextStyle(fontSize: 12))),
+              DataCell(Text(data['aft_draft'] != null ? '${data['aft_draft']} m' : '-', style: const TextStyle(fontSize: 12))),
               DataCell(Text(data['pilot_name'] ?? '-')),
-              DataCell(Text(data['from_where'] ?? '-', style: const TextStyle(fontSize: 12))),
-              DataCell(Text(data['to_where'] ?? '-', style: const TextStyle(fontSize: 12))),
+              DataCell(Text('${data['from_where'] ?? '-'} → ${data['to_where'] ?? '-'}', style: const TextStyle(fontSize: 12))),
+              DataCell(Text(data['last_port'] ?? '-', style: const TextStyle(fontSize: 12))),
+              DataCell(Text(data['next_port'] ?? '-', style: const TextStyle(fontSize: 12))),
               DataCell(Text(_formatDate(data['date']), style: const TextStyle(fontSize: 12))),
               DataCell(Text(_formatTimeOnly(data['pilot_on_board']), style: const TextStyle(fontSize: 12))),
               DataCell(_buildStatusBadge(data['status'] ?? 'Terjadwal')),
@@ -636,11 +659,22 @@ class _PemanduanPageState extends State<PemanduanPage> {
               const SizedBox(height: 8),
               Row(
                 children: [
+                  Icon(Icons.swap_horiz, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${data['from_where'] ?? '-'} → ${data['to_where'] ?? '-'}',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
                   Icon(Icons.route, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      '${data['from_where'] ?? '-'} → ${data['to_where'] ?? '-'}',
+                      '${data['last_port'] ?? '-'} → ${data['next_port'] ?? '-'}',
                       style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     ),
                   ),
@@ -717,14 +751,23 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   void _showAddPemanduanDialog(BuildContext context) {
     final vesselController = TextEditingController();
+    final callSignController = TextEditingController();
+    final masterController = TextEditingController();
+    final flagController = TextEditingController();
+    final grossTonnageController = TextEditingController();
+    final loaController = TextEditingController();
+    final agencyController = TextEditingController();
+    final foredraftController = TextEditingController();
+    final aftdraftController = TextEditingController();
     final pilotController = TextEditingController(text: UserSession.userName ?? '');
-    final fromController = TextEditingController();
-    final toController = TextEditingController();
+    final lastPortController = TextEditingController();
+    final nextPortController = TextEditingController();
     final dateController = TextEditingController();
     final timeController = TextEditingController();
     
     DateTime? selectedDate;
     TimeOfDay? selectedTime;
+    String selectedDirection = 'Masuk';
     final bool isPilot = UserSession.isPilot();
 
     showDialog(
@@ -740,9 +783,90 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   TextField(
                     controller: vesselController,
                     decoration: const InputDecoration(
-                      labelText: 'Nama Kapal',
+                      labelText: 'Nama Kapal *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.directions_boat),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: callSignController,
+                    decoration: const InputDecoration(
+                      labelText: 'Call Sign / Nama Panggilan',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.radio),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: masterController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Nahkoda',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: flagController,
+                    decoration: const InputDecoration(
+                      labelText: 'Bendera Kapal *',
+                      hintText: 'Contoh: Indonesia, Singapore',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.flag),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: grossTonnageController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Gross Tonnage *',
+                      hintText: 'Gross Tonnage',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.scale),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: agencyController,
+                    decoration: const InputDecoration(
+                      labelText: 'Keagenan Kapal *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.business),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: loaController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Panjang Kapal / LOA (meter) *',
+                      hintText: 'Length Overall',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.straighten),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: foredraftController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Sarat Muka (meter)',
+                      hintText: 'Opsional',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.straighten),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: aftdraftController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Sarat Belakang (meter)',
+                      hintText: 'Opsional',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.straighten),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -750,7 +874,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     controller: pilotController,
                     readOnly: isPilot,
                     decoration: InputDecoration(
-                      labelText: 'Nama Pandu',
+                      labelText: 'Nama Pandu *',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.person),
                       filled: isPilot,
@@ -759,19 +883,43 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: fromController,
+                  DropdownButtonFormField<String>(
+                    value: selectedDirection,
                     decoration: const InputDecoration(
-                      labelText: 'Dari (Pelabuhan)',
+                      labelText: 'Arah Pemanduan *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.swap_horiz),
+                    ),
+                    items: ['Masuk', 'Keluar']
+                        .map((direction) => DropdownMenuItem(
+                              value: direction,
+                              child: Text(direction == 'Masuk' 
+                                ? 'Masuk (Laut → Dermaga)' 
+                                : 'Keluar (Dermaga → Laut)'),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedDirection = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: lastPortController,
+                    decoration: const InputDecoration(
+                      labelText: 'Pelabuhan Asal *',
+                      hintText: 'Contoh: Singapore, Jakarta',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.location_on),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: toController,
+                    controller: nextPortController,
                     decoration: const InputDecoration(
-                      labelText: 'Ke (Pelabuhan)',
+                      labelText: 'Pelabuhan Tujuan *',
+                      hintText: 'Contoh: Batam, Singapore',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.place),
                     ),
@@ -780,7 +928,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   TextField(
                     controller: dateController,
                     decoration: const InputDecoration(
-                      labelText: 'Tanggal',
+                      labelText: 'Tanggal *',
                       hintText: 'Pilih tanggal',
                       border: OutlineInputBorder(),
                       suffixIcon: Icon(Icons.calendar_today),
@@ -817,7 +965,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   TextField(
                     controller: timeController,
                     decoration: const InputDecoration(
-                      labelText: 'Waktu Pilot On Board',
+                      labelText: 'Waktu Pandu Naik Kapal *',
                       hintText: 'Pilih waktu',
                       border: OutlineInputBorder(),
                       suffixIcon: Icon(Icons.access_time),
@@ -863,31 +1011,53 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () async {
-                  if (vesselController.text.isEmpty || 
-                      pilotController.text.isEmpty || 
-                      fromController.text.isEmpty || 
-                      toController.text.isEmpty || 
+                  if (vesselController.text.trim().isEmpty || 
+                      flagController.text.trim().isEmpty ||
+                      grossTonnageController.text.trim().isEmpty ||
+                      agencyController.text.trim().isEmpty ||
+                      loaController.text.trim().isEmpty ||
+                      pilotController.text.trim().isEmpty || 
+                      lastPortController.text.trim().isEmpty || 
+                      nextPortController.text.trim().isEmpty || 
                       selectedDate == null || 
                       selectedTime == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Semua field harus diisi!'),
+                        content: Text('Field bertanda * wajib diisi!'),
                         backgroundColor: Colors.red,
                       ),
                     );
                     return;
                   }
 
-                  // ✅ PENTING: Gunakan "date" bukan "tanggal" agar konsisten dengan get_stats.php
                   final dbDate = '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
                   final dbTime = '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00';
 
+                  String fromWhere, toWhere;
+                  if (selectedDirection == 'Masuk') {
+                    fromWhere = 'Laut';
+                    toWhere = 'Dermaga';
+                  } else {
+                    fromWhere = 'Dermaga';
+                    toWhere = 'Laut';
+                  }
+
                   final data = {
                     "vessel_name": vesselController.text,
+                    "call_sign": callSignController.text.isEmpty ? null : callSignController.text,
+                    "master_name": masterController.text.isEmpty ? null : masterController.text,
+                    "flag": flagController.text,
+                    "gross_tonnage": grossTonnageController.text,
+                    "agency": agencyController.text,
+                    "loa": loaController.text,
+                    "fore_draft": foredraftController.text.isEmpty ? null : foredraftController.text,
+                    "aft_draft": aftdraftController.text.isEmpty ? null : aftdraftController.text,
                     "pilot_name": pilotController.text,
-                    "from_where": fromController.text,
-                    "to_where": toController.text,
-                    "date": dbDate,  // ✅ Gunakan "date"
+                    "from_where": fromWhere,
+                    "to_where": toWhere,
+                    "last_port": lastPortController.text,
+                    "next_port": nextPortController.text,
+                    "date": dbDate,
                     "pilot_on_board": '$dbDate $dbTime',
                     "status": "Terjadwal",
                   };
@@ -917,9 +1087,19 @@ class _PemanduanPageState extends State<PemanduanPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildDetailRow('Nama Kapal', data['vessel_name'] ?? '-'),
+              _buildDetailRow('Call Sign', data['call_sign'] ?? '-'),
+              _buildDetailRow('Nama Master', data['master_name'] ?? '-'),
+              _buildDetailRow('Bendera', data['flag'] ?? '-'),
+              _buildDetailRow('Gross Tonnage', data['gross_tonnage'] ?? '-'),
+              _buildDetailRow('Keagenan', data['agency'] ?? '-'),
+              _buildDetailRow('LOA', data['loa'] != null ? '${data['loa']} m' : '-'),
+              _buildDetailRow('Fore Draft', data['fore_draft'] != null ? '${data['fore_draft']} m' : '-'),
+              _buildDetailRow('Aft Draft', data['aft_draft'] != null ? '${data['aft_draft']} m' : '-'),
+              const Divider(height: 24),
               _buildDetailRow('Pandu', data['pilot_name'] ?? '-'),
-              _buildDetailRow('Dari', data['from_where'] ?? '-'),
-              _buildDetailRow('Ke', data['to_where'] ?? '-'),
+              _buildDetailRow('Arah Pemanduan', '${data['from_where'] ?? '-'} → ${data['to_where'] ?? '-'}'),
+              _buildDetailRow('Pelabuhan Asal', data['last_port'] ?? '-'),
+              _buildDetailRow('Pelabuhan Tujuan', data['next_port'] ?? '-'),
               _buildDetailRow('Tanggal', _formatDate(data['date'])),
               _buildDetailRow('Pilot On Board', _formatTimeOnly(data['pilot_on_board'])),
               _buildDetailRow('Pilot Finished', _formatTimeOnly(data['pilot_finished'])),
@@ -946,7 +1126,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 130,
             child: Text(
               label,
               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -961,10 +1141,19 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
     final vesselController = TextEditingController(text: data['vessel_name']);
+    final callSignController = TextEditingController(text: data['call_sign']);
+    final masterController = TextEditingController(text: data['master_name']);
+    final flagController = TextEditingController(text: data['flag']);
+    final grossTonnageController = TextEditingController(text: data['gross_tonnage']);
+    final agencyController = TextEditingController(text: data['agency']);
+    final loaController = TextEditingController(text: data['loa'] ?? '');
+    final foredraftController = TextEditingController(text: data['fore_draft'] ?? '');
+    final aftdraftController = TextEditingController(text: data['aft_draft'] ?? '');
     final pilotController = TextEditingController(text: data['pilot_name']);
-    final fromController = TextEditingController(text: data['from_where']);
-    final toController = TextEditingController(text: data['to_where']);
+    final lastPortController = TextEditingController(text: data['last_port']);
+    final nextPortController = TextEditingController(text: data['next_port']);
     String selectedStatus = data['status'] ?? 'Terjadwal';
+    String selectedDirection = data['from_where'] == 'Laut' ? 'Masuk' : 'Keluar';
 
     showDialog(
       context: context,
@@ -978,27 +1167,131 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 children: [
                   TextField(
                     controller: vesselController,
-                    decoration: const InputDecoration(labelText: 'Nama Kapal'),
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Kapal',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: callSignController,
+                    decoration: const InputDecoration(
+                      labelText: 'Call Sign',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: masterController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Nahkoda',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: flagController,
+                    decoration: const InputDecoration(
+                      labelText: 'Bendera Kapal',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: grossTonnageController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Gross Tonnage',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: agencyController,
+                    decoration: const InputDecoration(
+                      labelText: 'Keagenan',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: loaController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Panjang Kapal / LOA (meter)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: foredraftController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Sarat Muka (meter)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: aftdraftController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Sarat Belakang (meter)',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: pilotController,
-                    decoration: const InputDecoration(labelText: 'Nama Pandu'),
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Pandu',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedDirection,
+                    decoration: const InputDecoration(
+                      labelText: 'Arah Pemanduan',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: ['Masuk', 'Keluar']
+                        .map((direction) => DropdownMenuItem(
+                              value: direction,
+                              child: Text(direction == 'Masuk' 
+                                ? 'Masuk (Laut → Dermaga)' 
+                                : 'Keluar (Dermaga → Laut)'),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedDirection = value!;
+                      });
+                    },
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: fromController,
-                    decoration: const InputDecoration(labelText: 'Dari (Pelabuhan)'),
+                    controller: lastPortController,
+                    decoration: const InputDecoration(
+                      labelText: 'Pelabuhan Asal',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: toController,
-                    decoration: const InputDecoration(labelText: 'Ke (Pelabuhan)'),
+                    controller: nextPortController,
+                    decoration: const InputDecoration(
+                      labelText: 'Pelabuhan Tujuan',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedStatus,
-                    decoration: const InputDecoration(labelText: 'Status'),
+                    decoration: const InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(),
+                    ),
                     items: ['Terjadwal', 'Aktif', 'Selesai']
                         .map((status) => DropdownMenuItem(
                               value: status,
@@ -1020,14 +1313,37 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 child: const Text('Batal'),
               ),
               ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+                  foregroundColor: Colors.white,
+                ),
                 onPressed: () async {
+                  String fromWhere, toWhere;
+                  if (selectedDirection == 'Masuk') {
+                    fromWhere = 'Laut';
+                    toWhere = 'Dermaga';
+                  } else {
+                    fromWhere = 'Dermaga';
+                    toWhere = 'Laut';
+                  }
+
                   final updateData = {
                     "id": data['id'],
                     "vessel_name": vesselController.text,
+                    "call_sign": callSignController.text.isEmpty ? null : callSignController.text,
+                    "master_name": masterController.text.isEmpty ? null : masterController.text,
+                    "flag": flagController.text,
+                    "gross_tonnage": grossTonnageController.text,
+                    "agency": agencyController.text,  
+                    "loa": loaController.text,
+                    "fore_draft": foredraftController.text.isEmpty ? null : foredraftController.text,
+                    "aft_draft": aftdraftController.text.isEmpty ? null : aftdraftController.text,
                     "pilot_name": pilotController.text,
-                    "from_where": fromController.text,
-                    "to_where": toController.text,
-                    "date": data['date'],  // ✅ Gunakan "date"
+                    "from_where": fromWhere,
+                    "to_where": toWhere,
+                    "last_port": lastPortController.text,
+                    "next_port": nextPortController.text,
+                    "date": data['date'],
                     "pilot_on_board": data['pilot_on_board'],
                     "pilot_finished": data['pilot_finished'],
                     "vessel_start": data['vessel_start'],
