@@ -1,6 +1,6 @@
 <?php
-ini_set('display_errors', 0);
-error_reporting(0);
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 ob_start();
 
 header("Access-Control-Allow-Origin: *");
@@ -17,7 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 try {
     require_once __DIR__ . "/../backend/config/config.php";
 
-    $data = json_decode(file_get_contents("php://input"), true);
+    $rawData = file_get_contents("php://input");
+    error_log("📥 Raw Input: " . $rawData);
+
+    $data = json_decode($rawData, true);
+    error_log("📦 Decoded Data: " . print_r($data, true));
 
     if (!$data) {
         throw new Exception("Invalid JSON data");
@@ -50,6 +54,8 @@ try {
     $pilot_get_off = $data["pilot_get_off"] ?? null;
     $status = $data["status"] ?? 'Terjadwal';
 
+    error_log("🔄 Updating ID: $id with from_where: $from_where, to_where: $to_where");
+
     $sql = "UPDATE pilotage_logs SET 
                 vessel_name = ?, 
                 call_sign = ?, 
@@ -74,9 +80,11 @@ try {
             WHERE id = ?";
 
     $stmt = $conn->prepare($sql);
-    if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
+    if (!$stmt) {
+        throw new Exception("Prepare failed: " . $conn->error);
+    }
 
-    $stmt->bind_param(
+    $bind_result = $stmt->bind_param(
         "ssssssssssssssssssssi",
         $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
         $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
@@ -84,11 +92,19 @@ try {
         $pilot_finished, $vessel_start, $pilot_get_off, $status, $id
     );
 
+    if (!$bind_result) {
+        throw new Exception("Bind param failed: " . $stmt->error);
+    }
+
     if ($stmt->execute()) {
+        $affected_rows = $stmt->affected_rows;
+        error_log("✅ Updated successfully. Affected rows: $affected_rows");
+        
         ob_end_clean();
         echo json_encode([
             "status" => "success",
-            "message" => "Data berhasil diupdate"
+            "message" => "Data berhasil diupdate",
+            "affected_rows" => $affected_rows
         ]);
     } else {
         throw new Exception("Execute failed: " . $stmt->error);
@@ -98,6 +114,7 @@ try {
     $conn->close();
 
 } catch (Exception $e) {
+    error_log("❌ Error: " . $e->getMessage());
     ob_end_clean();
     http_response_code(500);
     echo json_encode([

@@ -10,7 +10,7 @@ ob_start();
 $servername = "localhost";
 $username = "root";
 $password = "";
-$dbname = "dbsis_app";
+$dbname = "pilotage_and_assistance_app";
 
 try {
     $conn = new mysqli($servername, $username, $password, $dbname);

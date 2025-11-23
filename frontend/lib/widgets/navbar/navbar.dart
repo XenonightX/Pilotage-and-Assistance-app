@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pilotage_and_assistance_app/pages/profile/profile_page.dart';
 import '../../pages/settings/settings_page.dart';
-import '../../pages/pemanduan_page.dart';
-import '../../pages/penundaan_page.dart';
+import '../../pages/pemanduan/pemanduan_page.dart';
+import '../../pages/penundaan/penundaan_page.dart';
 import '../../../pages/login/login_page.dart';
 
 class ResponsiveNavBarPage extends StatefulWidget {
@@ -39,7 +39,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
       data: ThemeData.light(),
       child: Scaffold(
         key: _scaffoldKey,
-        backgroundColor: const Color(0xFFF4F6FA),
+        backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
         body: Stack(
           children: [
             // ✅ Body di bawah navbar
