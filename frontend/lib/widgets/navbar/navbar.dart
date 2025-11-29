@@ -48,10 +48,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 child: const Center(
-                  child: Text(
-                    "Body Content",
-                    style: TextStyle(fontSize: 20),
-                  ),
+                  child: Text("Body Content", style: TextStyle(fontSize: 20)),
                 ),
               ),
             ),
@@ -75,8 +72,10 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                 ),
                 child: SafeArea(
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -85,9 +84,11 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                           children: [
                             if (!isLargeScreen)
                               IconButton(
-                                icon: const Icon(Icons.menu,
-                                    color: Color.fromRGBO(12, 10, 80, 1),
-                                    size: 30),
+                                icon: const Icon(
+                                  Icons.menu,
+                                  color: Color.fromRGBO(12, 10, 80, 1),
+                                  size: 30,
+                                ),
                                 onPressed: () =>
                                     _scaffoldKey.currentState?.openDrawer(),
                               ),
@@ -130,66 +131,68 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
 
   // ✅ Drawer (untuk mobile)
   Widget _drawer(BuildContext context) => Drawer(
-        child: ListView(
-          children: [
-            DrawerHeader(
-              decoration:
-                  const BoxDecoration(color: Color.fromRGBO(0, 40, 120, 1)),
-              child: Row(
-                children: [
-                  Image.asset('assets/images/LOGO-SIS.png', height: 55),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      "Snepac Indo Service",
-                      style: TextStyle(color: Colors.white, fontSize: 17),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ..._menuItems.map(
-              (item) => ListTile(
-                onTap: () {
-                  Navigator.pop(context);
-                  if (item == 'Pemanduan') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const PemanduanPage(),
-                      ),
-                    );
-                  } else if (item == 'Penundaan') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const PenundaanPage(),
-                      ),
-                    );
-                  }
-                },
-                leading: item == 'Pemanduan'
-                    ? const Icon(
-                        Icons.directions_boat,
-                        color: Color.fromRGBO(12, 10, 80, 1),
-                      )
-                    : const Icon(
-                        Icons.anchor,
-                        color: Color.fromRGBO(12, 10, 80, 1),
-                      ),
-                title: Text(
-                  item,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Color.fromRGBO(12, 10, 80, 1),
-                    fontWeight: FontWeight.bold,
-                  ),
+    child: ListView(
+      children: [
+        DrawerHeader(
+          decoration: const BoxDecoration(color: Color.fromRGBO(0, 40, 120, 1)),
+          child: Row(
+            children: [
+              Image.asset('assets/images/LOGO-SIS.png', height: 55),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  "Snepac Indo Service",
+                  style: TextStyle(color: Colors.white, fontSize: 17),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      );
+        ..._menuItems.map(
+          (item) => ListTile(
+            onTap: () {
+              Navigator.pop(context);
+              if (item == 'Pemanduan') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PemanduanPage(),
+                  ),
+                );
+              } else if (item == 'Penundaan') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PenundaanPage(),
+                  ),
+                );
+              }
+            },
+            leading: item == 'Pemanduan'
+                ? Image.asset(
+                    'assets/icons/pilot1.png',
+                    width: 28,
+                    height: 27,
+                  )
+                : Image.asset(
+                    'assets/icons/tugboat.png',
+                    width: 28,
+                    height: 28,
+                  ),
+                  
+            title: Text(
+              item,
+              style: const TextStyle(
+                fontSize: 18,
+                color: Color.fromRGBO(12, 10, 80, 1),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   // ✅ Menu items (desktop view)
   Widget _navBarItems(BuildContext context) {

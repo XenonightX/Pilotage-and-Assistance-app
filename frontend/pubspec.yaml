@@ -38,8 +38,12 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   http: ^1.2.0
-  
+
+  flutter_local_notifications: ^17.2.3
+
   intl: ^0.18.1
+
+  url_launcher: ^6.2.1
 
 
 dev_dependencies:
@@ -64,8 +68,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/images/LOGO-SIS.png
-    - assets/images/NO-BG-LOGO-SIS.png
+    - assets/images/
     - assets/icons/
     
 

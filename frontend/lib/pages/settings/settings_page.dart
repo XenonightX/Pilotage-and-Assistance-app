@@ -46,7 +46,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 _darkMode = value;
               });
             },
-            activeColor: const Color.fromRGBO(0, 40, 120, 1),
+            activeThumbColor: const Color.fromRGBO(0, 40, 120, 1),
           ),
           const Divider(height: 30),
 
@@ -68,7 +68,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 _notificationsEnabled = value;
               });
             },
-            activeColor: const Color.fromRGBO(0, 40, 120, 1),
+            activeThumbColor: const Color.fromRGBO(0, 40, 120, 1),
           ),
 
           const Divider(height: 30),

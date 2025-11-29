@@ -39,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
       final response = await http.post(
         Uri.parse(
           // 'http://192.168.0.9/pilotage_and_assistance_app/backend/auth/login.php',
-          'http://192.168.1.20/pilotage_and_assistance_app/backend/auth/login.php',
+          'http://192.168.1.15/pilotage_and_assistance_app/backend/auth/login.php',
         ),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"email": email, "password": password}),

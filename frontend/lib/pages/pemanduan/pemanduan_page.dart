@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pilotage_and_assistance_app/pages/pemanduan/tambah_pemanduan_page.dart';
 
 class PemanduanPage extends StatefulWidget {
@@ -24,11 +25,22 @@ class _PemanduanPageState extends State<PemanduanPage> {
     'scheduled': '0'
   };
 
-  final String baseUrl = 'http://192.168.1.20/pilotage_and_assistance_app/api';
+  // Pagination variables
+  int _currentPage = 1;
+  int _rowsPerPage = 10;
+  int _totalData = 0;
+  int _totalPages = 1;
+
+  // User role
+  String _userRole = '';
+
+  // final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
   @override
   void initState() {
     super.initState();
+    _loadUserRole();
     _loadData();
   }
 
@@ -37,6 +49,17 @@ class _PemanduanPageState extends State<PemanduanPage> {
     _searchController.dispose();
     super.dispose();
   }
+
+  // Load user role from SharedPreferences
+  Future<void> _loadUserRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userRole = prefs.getString('user_role') ?? '';
+    });
+  }
+
+  // Check if user is admin
+  bool get _isAdmin => _userRole.toLowerCase() == 'admin';
 
   Future<void> _loadData() async {
     await Future.wait([
@@ -52,6 +75,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
       final uri = Uri.parse('$baseUrl/get_pilotages.php').replace(queryParameters: {
         'status': _selectedFilter != 'Semua' ? _selectedFilter : '',
         'search': _searchController.text,
+        'page': _currentPage.toString(),
+        'limit': _rowsPerPage.toString(),
       });
 
       final response = await http.get(uri);
@@ -61,7 +86,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
         
         if (result['status'] == 'success') {
           setState(() {
-            _pemanduanList = List<Map<String, dynamic>>.from(result['data']);
+            _pemanduanList = List<Map<String, dynamic>>.from(result['data'] ?? []);
+            _totalData = result['total'] ?? 0;
+            _totalPages = _totalData > 0 ? ((_totalData / _rowsPerPage).ceil()) : 1;
             _isLoading = false;
           });
         } else {
@@ -120,6 +147,197 @@ class _PemanduanPageState extends State<PemanduanPage> {
         };
       });
     }
+  }
+
+  void _goToPage(int page) {
+    if (page >= 1 && page <= _totalPages) {
+      setState(() => _currentPage = page);
+      _fetchPilotages();
+    }
+  }
+
+  void _changeRowsPerPage(int? newRowsPerPage) {
+    if (newRowsPerPage != null) {
+      setState(() {
+        _rowsPerPage = newRowsPerPage;
+        _currentPage = 1;
+      });
+      _fetchPilotages();
+    }
+  }
+
+  Widget _buildPaginationControls() {
+    final startIndex = (_currentPage - 1) * _rowsPerPage + 1;
+    final endIndex = (_currentPage * _rowsPerPage > _totalData) 
+        ? _totalData 
+        : _currentPage * _rowsPerPage;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Tampil:',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color.fromRGBO(12, 10, 80, 1),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButton<int>(
+                      value: _rowsPerPage,
+                      underline: const SizedBox(),
+                      items: [10, 25, 50, 100].map((value) {
+                        return DropdownMenuItem<int>(
+                          value: value,
+                          child: Text('$value'),
+                        );
+                      }).toList(),
+                      onChanged: _changeRowsPerPage,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              Text(
+                'Menampilkan $startIndex-$endIndex dari $_totalData',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color.fromRGBO(12, 10, 80, 1),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
+                icon: const Icon(Icons.chevron_left),
+                style: IconButton.styleFrom(
+                  backgroundColor: _currentPage > 1 
+                      ? const Color.fromRGBO(0, 40, 120, 1) 
+                      : Colors.grey[300],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ..._buildPageNumbers(),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
+                icon: const Icon(Icons.chevron_right),
+                style: IconButton.styleFrom(
+                  backgroundColor: _currentPage < _totalPages 
+                      ? const Color.fromRGBO(0, 40, 120, 1) 
+                      : Colors.grey[300],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPageNumbers() {
+    List<Widget> pageButtons = [];
+    
+    int startPage = (_currentPage - 2).clamp(1, _totalPages);
+    int endPage = (_currentPage + 2).clamp(1, _totalPages);
+    
+    if (startPage > 1) {
+      pageButtons.add(_buildPageButton(1));
+      if (startPage > 2) {
+        pageButtons.add(const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('...', style: TextStyle(fontSize: 16)),
+        ));
+      }
+    }
+    
+    for (int i = startPage; i <= endPage; i++) {
+      pageButtons.add(_buildPageButton(i));
+    }
+    
+    if (endPage < _totalPages) {
+      if (endPage < _totalPages - 1) {
+        pageButtons.add(const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text('...', style: TextStyle(fontSize: 16)),
+        ));
+      }
+      pageButtons.add(_buildPageButton(_totalPages));
+    }
+    
+    return pageButtons;
+  }
+
+  Widget _buildPageButton(int pageNumber) {
+    final isActive = pageNumber == _currentPage;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: InkWell(
+        onTap: () => _goToPage(pageNumber),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isActive 
+                ? const Color.fromRGBO(0, 40, 120, 1) 
+                : Colors.white,
+            border: Border.all(
+              color: isActive 
+                  ? const Color.fromRGBO(0, 40, 120, 1) 
+                  : Colors.grey[300]!,
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              '$pageNumber',
+              style: TextStyle(
+                color: isActive ? Colors.white : const Color.fromRGBO(12, 10, 80, 1),
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _updatePilotages(Map<String, dynamic> data) async {
@@ -191,6 +409,32 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
+  // Show access denied dialog for non-admin users
+  void _showAccessDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.block, color: Colors.red[700], size: 28),
+            const SizedBox(width: 12),
+            const Text('Akses Ditolak'),
+          ],
+        ),
+        content: const Text(
+          'Hanya Admin yang dapat menghapus data pemanduan.\n\nSilakan hubungi administrator jika Anda memerlukan bantuan.',
+          style: TextStyle(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -203,7 +447,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
           Positioned.fill(
             top: 100,
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
                 : RefreshIndicator(
                     onRefresh: _loadData,
                     child: SingleChildScrollView(
@@ -212,6 +456,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Stats Cards
                           isLargeScreen
                               ? Row(
                                   children: [
@@ -228,7 +473,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                   children: [
                                     Row(
                                       children: [
-                                        Expanded(child: _buildStatCard('Total Pemanduan', _stats['total']!, Icons.assessment, Colors.blue)),
+                                        Expanded(child: _buildStatCard('Total', _stats['total']!, Icons.assessment, Colors.blue)),
                                         const SizedBox(width: 12),
                                         Expanded(child: _buildStatCard('Aktif', _stats['active']!, Icons.sailing, Colors.orange)),
                                       ],
@@ -245,6 +490,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                 ),
                           const SizedBox(height: 30),
 
+                          // Search, Filter, Add Button
                           Wrap(
                             spacing: 12,
                             runSpacing: 12,
@@ -266,6 +512,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                   onChanged: (value) {
                                     Future.delayed(const Duration(milliseconds: 500), () {
                                       if (_searchController.text == value) {
+                                        setState(() => _currentPage = 1);
                                         _fetchPilotages();
                                       }
                                     });
@@ -289,8 +536,13 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                           ))
                                       .toList(),
                                   onChanged: (value) {
-                                    setState(() => _selectedFilter = value!);
-                                    _fetchPilotages();
+                                    if (value != null) {
+                                      setState(() {
+                                        _selectedFilter = value;
+                                        _currentPage = 1;
+                                      });
+                                      _fetchPilotages();
+                                    }
                                   },
                                 ),
                               ),
@@ -303,7 +555,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                     ),
                                   );
                                   if (result == true) {
-                                    _loadData(); // Refresh data setelah berhasil tambah
+                                    _loadData();
                                   }
                                 },
                                 icon: const Icon(Icons.add),
@@ -321,6 +573,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           ),
                           const SizedBox(height: 24),
 
+                          // Header
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -333,8 +586,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                 ),
                               ),
                               Text(
-                                '${_pemanduanList.length} data',
-                                style: TextStyle(
+                                'Total: $_totalData data',
+                                style: const TextStyle(
                                   fontSize: 14,
                                   color: Color(0xFFF4F6FA),
                                 ),
@@ -343,6 +596,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           ),
                           const SizedBox(height: 16),
 
+                          // Table/Card List with Pagination
                           _pemanduanList.isEmpty
                               ? Center(
                                   child: Padding(
@@ -359,13 +613,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                     ),
                                   ),
                                 )
-                              : (isLargeScreen ? _buildTable() : _buildCardList()),
+                              : Column(
+                                  children: [
+                                    isLargeScreen ? _buildTable() : _buildCardList(),
+                                    const SizedBox(height: 20),
+                                    _buildPaginationControls(),
+                                  ],
+                                ),
                         ],
                       ),
                     ),
                   ),
           ),
 
+          // Header
           Positioned(
             top: 0,
             left: 0,
@@ -395,7 +656,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         ),
                         onPressed: () => Navigator.pop(context),
                       ),
-                      
                       const SizedBox(width: 8),
                       const Text(
                         "Pemanduan",
@@ -406,6 +666,35 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         ),
                       ),
                       const Spacer(),
+                      // Show role badge
+                      if (_userRole.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _isAdmin ? Colors.red[100] : Colors.blue[100],
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isAdmin ? Icons.admin_panel_settings : Icons.person,
+                                size: 16,
+                                color: _isAdmin ? Colors.red[700] : Colors.blue[700],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _userRole,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: _isAdmin ? Colors.red[700] : Colors.blue[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(width: 12),
                       IconButton(
                         icon: const Icon(Icons.refresh),
                         onPressed: _loadData,
@@ -480,15 +769,18 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  String _formatTimeOnly(String? dateTime) {
-    if (dateTime == null || dateTime.isEmpty) return '-';
-    try {
-      final dt = DateTime.parse(dateTime);
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return dateTime;
-    }
+String _formatTimeOnly(String? dateTime) {
+  if (dateTime == null || dateTime.isEmpty) return '- (LT)';
+  try {
+    final dt = DateTime.parse(dateTime);
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$hh:$mm (LT)';
+  } catch (e) {
+    return '$dateTime (LT)';
   }
+}
+
 
   Widget _buildTable() {
     return Container(
@@ -506,7 +798,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
+          headingRowColor: WidgetStateProperty.all(Colors.grey[100]),
           columns: const [
             DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Nama Kapal', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -529,12 +821,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
           ],
           rows: _pemanduanList.map((data) {
             return DataRow(cells: [
-              DataCell(Text(data['id'].toString())),
+              DataCell(Text(data['id']?.toString() ?? '-')),
               DataCell(Text(data['vessel_name'] ?? '-')),
               DataCell(Text(data['call_sign'] ?? '-')),
               DataCell(Text(data['master_name'] ?? '-')),
               DataCell(Text(data['flag'] ?? '-')),
-              DataCell(Text('${data['gross_tonnage'] ?? '-'}', style: const TextStyle(fontSize: 12))),
+              DataCell(Text(data['gross_tonnage']?.toString() ?? '-', style: const TextStyle(fontSize: 12))),
               DataCell(Text(data['agency'] ?? '-')),
               DataCell(Text(data['loa'] != null ? '${data['loa']} m' : '-', style: const TextStyle(fontSize: 12))),
               DataCell(Text(data['fore_draft'] != null ? '${data['fore_draft']} m' : '-', style: const TextStyle(fontSize: 12))),
@@ -559,11 +851,19 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       onPressed: () => _showEditDialog(context, data),
                       tooltip: 'Edit',
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                      onPressed: () => _showDeleteConfirmation(context, data['id']),
-                      tooltip: 'Hapus',
-                    ),
+                    // Tombol Delete hanya muncul untuk Admin
+                    if (_isAdmin)
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                        onPressed: () => _showDeleteConfirmation(context, data['id']),
+                        tooltip: 'Hapus',
+                      )
+                    else
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.grey[400], size: 20),
+                        onPressed: _showAccessDeniedDialog,
+                        tooltip: 'Hapus (Admin Only)',
+                      ),
                   ],
                 ),
               ),
@@ -669,6 +969,14 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     label: const Text('Edit'),
                     style: TextButton.styleFrom(foregroundColor: Colors.orange),
                   ),
+                  // Tombol Delete hanya untuk Admin
+                  if (_isAdmin)
+                    TextButton.icon(
+                      onPressed: () => _showDeleteConfirmation(context, data['id']),
+                      icon: const Icon(Icons.delete, size: 18),
+                      label: const Text('Hapus'),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    ),
                 ],
               ),
             ],
@@ -725,7 +1033,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
               _buildDetailRow('Call Sign', data['call_sign'] ?? '-'),
               _buildDetailRow('Nama Master', data['master_name'] ?? '-'),
               _buildDetailRow('Bendera', data['flag'] ?? '-'),
-              _buildDetailRow('Gross Tonnage', data['gross_tonnage'] ?? '-'),
+              _buildDetailRow('Gross Tonnage', data['gross_tonnage']?.toString() ?? '-'),
               _buildDetailRow('Keagenan', data['agency'] ?? '-'),
               _buildDetailRow('LOA', data['loa'] != null ? '${data['loa']} m' : '-'),
               _buildDetailRow('Sarat Muka', data['fore_draft'] != null ? '${data['fore_draft']} m' : '-'),
@@ -774,13 +1082,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  
 void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
-  // Parse vessel name untuk menentukan jenis kapal
   final vesselNameParts = (data['vessel_name'] ?? '').split('/');
-  final String vesselType = vesselNameParts.length > 1 ? 'Tug' : 'Motor'; // FINAL - tidak bisa diubah
+  final String vesselType = vesselNameParts.length > 1 ? 'Tug' : 'Motor';
   
-  // Controllers
   final vesselController = TextEditingController(
     text: vesselType == 'Motor' ? data['vessel_name'] : ''
   );
@@ -794,23 +1099,36 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
   final masterController = TextEditingController(text: data['master_name'] ?? '');
   final flagController = TextEditingController(text: data['flag'] ?? '');
   
-  // Parse GT
-  final gtParts = (data['gross_tonnage'] ?? '').split('/');
+  final gtParts = (data['gross_tonnage']?.toString() ?? '').split('/');
   final gtTugController = TextEditingController(text: gtParts.isNotEmpty ? gtParts[0].trim() : '');
   final gtBargeController = TextEditingController(text: gtParts.length > 1 ? gtParts[1].trim() : '');
   
   final agencyController = TextEditingController(text: data['agency'] ?? '');
   
-  // Parse LOA
-  final loaParts = (data['loa'] ?? '').split('/');
+  final loaParts = (data['loa']?.toString() ?? '').split('/');
   final loaTugController = TextEditingController(text: loaParts.isNotEmpty ? loaParts[0].trim() : '');
   final loaBargeController = TextEditingController(text: loaParts.length > 1 ? loaParts[1].trim() : '');
   
-  final foredraftController = TextEditingController(text: data['fore_draft'] ?? '');
-  final aftdraftController = TextEditingController(text: data['aft_draft'] ?? '');
+  final foredraftController = TextEditingController(text: data['fore_draft']?.toString() ?? '');
+  final aftdraftController = TextEditingController(text: data['aft_draft']?.toString() ?? '');
   final pilotController = TextEditingController(text: data['pilot_name'] ?? '');
   final lastPortController = TextEditingController(text: data['last_port'] ?? '');
   final nextPortController = TextEditingController(text: data['next_port'] ?? '');
+  
+  // Time Controllers
+  final pilotOnBoardController = TextEditingController(
+    text: data['pilot_on_board'] != null ? _formatTimeOnly(data['pilot_on_board']) : ''
+  );
+  final pilotFinishedController = TextEditingController(
+    text: data['pilot_finished'] != null ? _formatTimeOnly(data['pilot_finished']) : ''
+  );
+  final vesselStartController = TextEditingController(
+    text: data['vessel_start'] != null ? _formatTimeOnly(data['vessel_start']) : ''
+  );
+  final pilotGetOffController = TextEditingController(
+    text: data['pilot_get_off'] != null ? _formatTimeOnly(data['pilot_get_off']) : ''
+  );
+  
   String selectedStatus = data['status'] ?? 'Terjadwal';
   
   String selectedDirection;
@@ -824,10 +1142,35 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
     jettyController.text = data['from_where'] ?? '';
   }
 
+  // Time Picker Helper
+  Future<void> selectTime(BuildContext context, TextEditingController controller) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color.fromRGBO(0, 40, 120, 1),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    
+    if (picked != null) {
+      controller.text = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
   showDialog(
     context: context,
     builder: (context) => StatefulBuilder(
-      builder: (context, setState) {
+      builder: (context, setDialogState) {
+        // Check if additional time fields should be shown
+        bool showTimeFields = selectedStatus == 'Aktif' || selectedStatus == 'Selesai';
+        
         return AlertDialog(
           title: Text('Edit Pemanduan ID: ${data['id']}'),
           content: SingleChildScrollView(
@@ -835,7 +1178,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Info Jenis Kapal (Read-only, tidak bisa diubah)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -866,7 +1208,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                 ),
                 const SizedBox(height: 16),
 
-                // Data Kapal Section
                 Text(
                   'Data Kapal',
                   style: TextStyle(
@@ -877,7 +1218,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                 ),
                 const SizedBox(height: 12),
                 
-                // Conditional: Nama Kapal Motor atau Tug & Tongkang
                 if (vesselType == 'Motor') ...[
                   TextField(
                     controller: vesselController,
@@ -894,7 +1234,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                     controller: tugNameController,
                     decoration: const InputDecoration(
                       labelText: 'Nama Tug Boat *',
-                      hintText: 'Contoh: TB. Bintang Laut',
                       border: OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
@@ -906,7 +1245,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                     controller: bargeNameController,
                     decoration: const InputDecoration(
                       labelText: 'Nama Tongkang *',
-                      hintText: 'Contoh: BG. Jaya 01',
                       border: OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
@@ -918,28 +1256,24 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                 
                 TextField(
                   controller: callSignController,
-                  decoration: InputDecoration(
-                    labelText: vesselType == 'Motor'
-                        ? 'Call Sign / Nama Panggilan *'
-                        : 'Call Sign / Nama Panggilan',
-                    border: const OutlineInputBorder(),
+                  decoration: const InputDecoration(
+                    labelText: 'Call Sign',
+                    border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
-                    prefixIcon: const Icon(Icons.radio),
+                    prefixIcon: Icon(Icons.radio),
                   ),
                 ),
                 const SizedBox(height: 12),
                 
                 TextField(
                   controller: masterController,
-                  decoration: InputDecoration(
-                    labelText: vesselType == 'Motor'
-                        ? 'Nama Nahkoda *'
-                        : 'Nama Nahkoda',
-                    border: const OutlineInputBorder(),
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Nahkoda',
+                    border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
-                    prefixIcon: const Icon(Icons.person_outline),
+                    prefixIcon: Icon(Icons.person_outline),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -948,7 +1282,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   controller: flagController,
                   decoration: const InputDecoration(
                     labelText: 'Bendera Kapal *',
-                    hintText: 'Contoh: Indonesia, Singapore',
                     border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
@@ -988,7 +1321,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
                           labelText: vesselType == 'Motor' ? 'GT Kapal Motor *' : 'GT Tug Boat *',
-                          hintText: vesselType == 'Motor' ? 'Masukkan GT Kapal' : 'Masukkan GT Tug Boat',
                           border: const OutlineInputBorder(),
                           filled: true,
                           fillColor: Colors.white,
@@ -1002,7 +1334,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
                             labelText: 'GT Tongkang *',
-                            hintText: 'Masukkan GT Tongkang',
                             border: OutlineInputBorder(),
                             filled: true,
                             fillColor: Colors.white,
@@ -1058,7 +1389,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
                           labelText: vesselType == 'Motor' ? 'LOA Kapal Motor (meter) *' : 'LOA Tug Boat (meter) *',
-                          hintText: vesselType == 'Motor' ? 'Panjang Kapal' : 'Panjang Tug Boat',
                           border: const OutlineInputBorder(),
                           filled: true,
                           fillColor: Colors.white,
@@ -1073,7 +1403,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: const InputDecoration(
                             labelText: 'LOA Tongkang (meter) *',
-                            hintText: 'Panjang Tongkang',
                             border: OutlineInputBorder(),
                             filled: true,
                             fillColor: Colors.white,
@@ -1092,7 +1421,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
                     labelText: 'Sarat Muka (meter)',
-                    hintText: 'Opsional',
                     border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
@@ -1106,7 +1434,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
                     labelText: 'Sarat Belakang (meter)',
-                    hintText: 'Opsional',
                     border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
@@ -1139,7 +1466,7 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                 const SizedBox(height: 12),
                 
                 DropdownButtonFormField<String>(
-                  value: selectedDirection,
+                  initialValue: selectedDirection,
                   decoration: const InputDecoration(
                     labelText: 'Arah Pemanduan *',
                     border: OutlineInputBorder(),
@@ -1156,7 +1483,7 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                           ))
                       .toList(),
                   onChanged: (value) {
-                    setState(() {
+                    setDialogState(() {
                       selectedDirection = value!;
                       jettyController.clear();
                     });
@@ -1169,8 +1496,8 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   decoration: InputDecoration(
                     labelText: 'Nama Jetty *',
                     hintText: selectedDirection == 'IN' 
-                      ? 'Jetty tujuan (contoh: Jetty Batu Ampar)' 
-                      : 'Jetty asal (contoh: Jetty Batu Ampar)',
+                      ? 'Jetty tujuan' 
+                      : 'Jetty asal',
                     border: const OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
@@ -1183,7 +1510,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   controller: lastPortController,
                   decoration: const InputDecoration(
                     labelText: 'Pelabuhan Asal *',
-                    hintText: 'Contoh: Singapore, Jakarta',
                     border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
@@ -1196,7 +1522,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   controller: nextPortController,
                   decoration: const InputDecoration(
                     labelText: 'Pelabuhan Tujuan *',
-                    hintText: 'Contoh: Batam, Singapore',
                     border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Colors.white,
@@ -1206,7 +1531,7 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                 const SizedBox(height: 12),
                 
                 DropdownButtonFormField<String>(
-                  value: selectedStatus,
+                  initialValue: selectedStatus,
                   decoration: const InputDecoration(
                     labelText: 'Status *',
                     border: OutlineInputBorder(),
@@ -1220,11 +1545,137 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                           ))
                       .toList(),
                   onChanged: (value) {
-                    setState(() {
+                    setDialogState(() {
                       selectedStatus = value!;
                     });
                   },
                 ),
+                
+                // Conditional Time Fields based on Status
+                if (showTimeFields) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.access_time, size: 18, color: Colors.orange[700]),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Waktu Pemanduan',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        // Pilot On Board (Always shown for Aktif & Selesai)
+                        TextField(
+                          controller: pilotOnBoardController,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Pandu Naik Kapal *',
+                            hintText: 'HH:MM',
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Colors.white,
+                            prefixIcon: Icon(Icons.login),
+                            suffixIcon: Icon(Icons.access_time),
+                          ),
+                          onTap: () => selectTime(context, pilotOnBoardController),
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        // Vessel Start (shown for Aktif & Selesai)
+                        TextField(
+                          controller: vesselStartController,
+                          readOnly: true,
+                          decoration: InputDecoration(
+                            labelText: 'Kapal Bergerak ${selectedStatus == 'Selesai' ? '*' : ''}',
+                            hintText: 'HH:MM',
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Colors.white,
+                            prefixIcon: Icon(Icons.sailing),
+                            suffixIcon: Icon(Icons.access_time),
+                          ),
+                          onTap: () => selectTime(context, vesselStartController),
+                        ),
+                        
+                        // Additional fields only for "Selesai" status
+                        if (selectedStatus == 'Selesai') ...[
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: pilotFinishedController,
+                            readOnly: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Pandu Selesai *',
+                              hintText: 'HH:MM',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                              prefixIcon: Icon(Icons.check_circle_outline),
+                              suffixIcon: Icon(Icons.access_time),
+                            ),
+                            onTap: () => selectTime(context, pilotFinishedController),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: pilotGetOffController,
+                            readOnly: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Pandu Turun *',
+                              hintText: 'HH:MM',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                              prefixIcon: Icon(Icons.logout),
+                              suffixIcon: Icon(Icons.access_time),
+                            ),
+                            onTap: () => selectTime(context, pilotGetOffController),
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  selectedStatus == 'Aktif' 
+                                    ? 'Status Aktif: Isi waktu pandu naik kapal dan kapal bergerak'
+                                    : 'Status Selesai: Isi semua waktu pemanduan',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1239,7 +1690,7 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                 foregroundColor: Colors.white,
               ),
               onPressed: () async {
-                // Validasi
+                // Validation
                 if (jettyController.text.trim().isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -1249,8 +1700,34 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   );
                   return;
                 }
+                
+                // Validate time fields based on status
+                if (showTimeFields) {
+                  if (pilotOnBoardController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Waktu Pandu Naik Kapal wajib diisi!'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+                  
+                  if (selectedStatus == 'Selesai') {
+                    if (vesselStartController.text.trim().isEmpty ||
+                        pilotFinishedController.text.trim().isEmpty ||
+                        pilotGetOffController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Semua waktu pemanduan wajib diisi untuk status Selesai!'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                  }
+                }
 
-                // Tentukan from_where dan to_where
                 String fromWhere, toWhere;
                 if (selectedDirection == 'IN') {
                   fromWhere = 'Laut';
@@ -1260,7 +1737,6 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   toWhere = 'Laut';
                 }
 
-                // Format vessel_name (TIDAK BISA DIUBAH JENISNYA)
                 String vesselName;
                 if (vesselType == 'Motor') {
                   vesselName = vesselController.text.trim();
@@ -1271,16 +1747,34 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   }
                 }
 
-                // Format GT
                 String grossTonnage = gtTugController.text.trim();
                 if (vesselType == 'Tug' && gtBargeController.text.trim().isNotEmpty) {
                   grossTonnage += '/${gtBargeController.text.trim()}';
                 }
                 
-                // Format LOA
                 String loa = loaTugController.text.trim();
                 if (vesselType == 'Tug' && loaBargeController.text.trim().isNotEmpty) {
                   loa += '/${loaBargeController.text.trim()}';
+                }
+
+                // Prepare datetime strings
+                String? pilotOnBoard;
+                String? pilotFinished;
+                String? vesselStart;
+                String? pilotGetOff;
+                
+                if (showTimeFields) {
+                  final dateStr = data['date'] ?? DateTime.now().toString().split(' ')[0];
+                  pilotOnBoard = '$dateStr ${pilotOnBoardController.text}:00';
+                  
+                  if (vesselStartController.text.isNotEmpty) {
+                    vesselStart = '$dateStr ${vesselStartController.text}:00';
+                  }
+                  
+                  if (selectedStatus == 'Selesai') {
+                    pilotFinished = '$dateStr ${pilotFinishedController.text}:00';
+                    pilotGetOff = '$dateStr ${pilotGetOffController.text}:00';
+                  }
                 }
 
                 final updateData = {
@@ -1300,10 +1794,10 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
                   "last_port": lastPortController.text,
                   "next_port": nextPortController.text,
                   "date": data['date'],
-                  "pilot_on_board": data['pilot_on_board'],
-                  "pilot_finished": data['pilot_finished'],
-                  "vessel_start": data['vessel_start'],
-                  "pilot_get_off": data['pilot_get_off'],
+                  "pilot_on_board": pilotOnBoard,
+                  "pilot_finished": pilotFinished,
+                  "vessel_start": vesselStart,
+                  "pilot_get_off": pilotGetOff,
                   "status": selectedStatus,
                 };
                 
@@ -1323,8 +1817,45 @@ void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Konfirmasi Hapus'),
-        content: const Text('Apakah Anda yakin ingin menghapus data ini?'),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
+            const SizedBox(width: 12),
+            const Text('Konfirmasi Hapus'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Apakah Anda yakin ingin menghapus data pemanduan ini?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.red[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Data yang dihapus tidak dapat dikembalikan!',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.red[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

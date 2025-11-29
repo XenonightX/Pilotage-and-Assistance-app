@@ -39,7 +39,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   String vesselType = 'Motor'; // Motor atau Tug & Tongkang
   bool _isLoading = false;
 
-  final String baseUrl = 'http://192.168.1.20/pilotage_and_assistance_app/api';
+  // final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
   @override
   void initState() {
@@ -132,14 +133,22 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
       final data = {
         "vessel_name": vesselName,
-        "call_sign": callSignController.text.isEmpty ? null : callSignController.text,
-        "master_name": masterController.text.isEmpty ? null : masterController.text,
+        "call_sign": callSignController.text.isEmpty
+            ? null
+            : callSignController.text,
+        "master_name": masterController.text.isEmpty
+            ? null
+            : masterController.text,
         "flag": flagController.text,
         "gross_tonnage": grossTonnage,
         "agency": agencyController.text,
         "loa": loa,
-        "fore_draft": foredraftController.text.isEmpty ? null : foredraftController.text,
-        "aft_draft": aftdraftController.text.isEmpty ? null : aftdraftController.text,
+        "fore_draft": foredraftController.text.isEmpty
+            ? null
+            : foredraftController.text,
+        "aft_draft": aftdraftController.text.isEmpty
+            ? null
+            : aftdraftController.text,
         "pilot_name": pilotController.text,
         "from_where": fromWhere,
         "to_where": toWhere,
@@ -237,7 +246,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                             children: [
                               Expanded(
                                 child: RadioListTile<String>(
-                                  title: const Text('Kapal Motor'),
+                                  title: const Text('KAPAL MOTOR'),
                                   value: 'Motor',
                                   groupValue: vesselType,
                                   onChanged: (value) {
@@ -262,7 +271,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                               ),
                               Expanded(
                                 child: RadioListTile<String>(
-                                  title: const Text('Tug & Tongkang'),
+                                  title: const Text('TUG BOAT & TONGKANG'),
                                   value: 'Tug',
                                   groupValue: vesselType,
                                   onChanged: (value) {
@@ -295,12 +304,20 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     if (vesselType == 'Motor') ...[
                       TextFormField(
                         controller: vesselController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Nama Kapal Motor *',
-                          border: OutlineInputBorder(),
+                          border: const OutlineInputBorder(),
                           filled: true,
                           fillColor: Colors.white,
-                          prefixIcon: Icon(Icons.directions_boat),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(9),
+                            child: Image.asset(
+                              'assets/icons/vessel.png', // ganti sesuai icon
+                              width: 15,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -312,13 +329,21 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     ] else ...[
                       TextFormField(
                         controller: tugNameController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Nama Tug Boat *',
                           hintText: 'Contoh: TB. Bintang Laut',
                           border: OutlineInputBorder(),
                           filled: true,
                           fillColor: Colors.white,
-                          prefixIcon: Icon(Icons.directions_boat),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(9),
+                            child: Image.asset(
+                              'assets/icons/tugboat.png', // ganti sesuai icon
+                              width: 15,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -330,13 +355,21 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: bargeNameController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Nama Tongkang *',
                           hintText: 'Contoh: BG. Jaya 01',
                           border: OutlineInputBorder(),
                           filled: true,
                           fillColor: Colors.white,
-                          prefixIcon: Icon(Icons.anchor),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(5),
+                            child: Image.asset(
+                              'assets/icons/barge.png', // ganti sesuai icon
+                              width: 15,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -358,7 +391,15 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                         border: const OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: const Icon(Icons.radio),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(9),
+                          child: Image.asset(
+                            'assets/icons/call_sign.png', // ganti sesuai icon
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       validator: vesselType == 'Motor'
                           ? (value) {
@@ -381,7 +422,15 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                         border: const OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: const Icon(Icons.person_outline),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(7),
+                          child: Image.asset(
+                            'assets/icons/pilot.png', // ganti sesuai icon
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       validator: vesselType == 'Motor'
                           ? (value) {
@@ -396,17 +445,51 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: flagController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Bendera Kapal *',
                         hintText: 'Contoh: Indonesia, Singapore',
                         border: OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.flag),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Image.asset(
+                            'assets/icons/flag.png', // ganti sesuai icon
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Bendera kapal wajib diisi';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: agencyController,
+                      decoration: InputDecoration(
+                        labelText: 'Keagenan Kapal *',
+                        border: OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.white,
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Image.asset(
+                            'assets/icons/agency.png', // ganti sesuai icon
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Keagenan wajib diisi';
                         }
                         return null;
                       },
@@ -458,10 +541,18 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                               border: const OutlineInputBorder(),
                               filled: true,
                               fillColor: Colors.white,
-                              prefixIcon: Icon(
-                                vesselType == 'Motor'
-                                    ? Icons.directions_boat
-                                    : Icons.directions_boat,
+
+                              // === Prefix Icon dari Asset ===
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Image.asset(
+                                  vesselType == 'Motor'
+                                      ? 'assets/icons/vessel.png' // icon kapal motor
+                                      : 'assets/icons/tugboat.png', // icon tugboat
+                                  width: 20,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
                             validator: (value) {
@@ -480,13 +571,21 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                             TextFormField(
                               controller: gtBargeController,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'GT Tongkang *',
                                 hintText: 'Masukkan GT Tongkang',
                                 border: OutlineInputBorder(),
                                 filled: true,
                                 fillColor: Colors.white,
-                                prefixIcon: Icon(Icons.anchor),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.all(5),
+                                  child: Image.asset(
+                                    'assets/icons/barge.png', // ganti sesuai icon
+                                    width: 15,
+                                    height: 20,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                               ),
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
@@ -500,24 +599,6 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-
-                    TextFormField(
-                      controller: agencyController,
-                      decoration: const InputDecoration(
-                        labelText: 'Keagenan Kapal *',
-                        border: OutlineInputBorder(),
-                        filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.business),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Keagenan wajib diisi';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
 
                     // LOA Section - Conditional
                     Container(
@@ -568,12 +649,17 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                               border: const OutlineInputBorder(),
                               filled: true,
                               fillColor: Colors.white,
-                              prefixIcon: Icon(
-                                vesselType == 'Motor'
-                                    ? Icons.directions_boat
-                                    : Icons.directions_boat,
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(7),
+                                child: Image.asset(
+                                  vesselType == 'Motor'
+                                      ? 'assets/icons/loa.png' // icon kapal motor
+                                      : 'assets/icons/loa.png', // icon tugboat
+                                  width: 20,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
-                              suffixText: 'm',
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
@@ -594,13 +680,21 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                                   const TextInputType.numberWithOptions(
                                     decimal: true,
                                   ),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'LOA Tongkang (meter) *',
                                 hintText: 'Panjang Tongkang',
                                 border: OutlineInputBorder(),
                                 filled: true,
                                 fillColor: Colors.white,
-                                prefixIcon: Icon(Icons.anchor),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.all(7),
+                                  child: Image.asset(
+                                    'assets/icons/loa.png', // ganti sesuai icon
+                                    width: 15,
+                                    height: 20,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                                 suffixText: 'm',
                               ),
                               validator: (value) {
@@ -616,34 +710,123 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     ),
                     const SizedBox(height: 12),
 
-                    TextFormField(
-                      controller: foredraftController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Sarat Muka (meter)',
-                        hintText: 'Opsional',
-                        border: OutlineInputBorder(),
-                        filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.straighten),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                    // Ganti bagian Sarat Muka dan Sarat Belakang dengan kode ini:
 
-                    TextFormField(
-                      controller: aftdraftController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                    // Draft Section - Similar to GT and LOA
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.purple.withOpacity(0.3),
+                        ),
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Sarat Belakang (meter)',
-                        hintText: 'Opsional',
-                        border: OutlineInputBorder(),
-                        filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.straighten),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.waves,
+                                size: 20,
+                                color: Colors.purple[700],
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Sarat Kapal (Draft)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.purple[700],
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 16,
+                                  color: const Color.fromARGB(255, 255, 0, 0),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Opsional - Isi jika data tersedia',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: const Color.fromARGB(
+                                        255,
+                                        255,
+                                        0,
+                                        0,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Sarat Muka
+                          TextFormField(
+                            controller: foredraftController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Sarat Muka (meter)',
+                              hintText: 'Opsional',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(7),
+                                child: Image.asset(
+                                  'assets/icons/draft.png', // ganti sesuai icon
+                                  width: 15,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                              suffixText: 'm',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Sarat Belakang
+                          TextFormField(
+                            controller: aftdraftController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Sarat Belakang (meter)',
+                              hintText: 'Opsional',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(7),
+                                child: Image.asset(
+                                  'assets/icons/draft.png', // ganti sesuai icon
+                                  width: 15,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                              suffixText: 'm',
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -660,15 +843,32 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                         border: const OutlineInputBorder(),
                         filled: true,
                         fillColor: isPilot ? Colors.grey[200] : Colors.white,
-                        prefixIcon: const Icon(Icons.person),
+
+                        // === Prefix Icon dari Asset ===
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Image.asset(
+                            'assets/icons/pilot1.png', // Ganti sesuai icon
+                            width: 20,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+
+                        // === Suffix Icon Pakai Asset Jika isPilot ===
                         suffixIcon: isPilot
-                            ? const Icon(
-                                Icons.lock,
-                                size: 18,
-                                color: Colors.grey,
+                            ? Padding(
+                                padding: const EdgeInsets.all(7),
+                                child: Image.asset(
+                                  'assets/icons/lock.png', // file icon gembok
+                                  width: 16,
+                                  height: 16,
+                                  fit: BoxFit.contain,
+                                ),
                               )
                             : null,
                       ),
+
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Nama pandu wajib diisi';
@@ -679,13 +879,21 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      value: selectedDirection,
-                      decoration: const InputDecoration(
+                      initialValue: selectedDirection,
+                      decoration: InputDecoration(
                         labelText: 'Arah Pemanduan *',
                         border: OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.swap_horiz),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Image.asset(
+                            'assets/icons/transfer.png', // ganti sesuai icon
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       items: ['IN', 'OUT']
                           .map(
@@ -717,7 +925,15 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                         border: const OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: const Icon(Icons.anchor),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Image.asset(
+                            'assets/icons/jetty.png', // ganti sesuai icon
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -730,13 +946,21 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: lastPortController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Pelabuhan Asal *',
                         hintText: 'Contoh: Singapore, Jakarta',
                         border: OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.location_on),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(9),
+                          child: Image.asset(
+                            'assets/icons/location.png', // ganti sesuai icon
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -749,13 +973,21 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: nextPortController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Pelabuhan Tujuan *',
                         hintText: 'Contoh: Batam, Singapore',
                         border: OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.place),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(9),
+                          child: Image.asset(
+                            'assets/icons/location.png', // ganti sesuai icon
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -768,13 +1000,23 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: dateController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Tanggal *',
                         hintText: 'Pilih tanggal',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        suffixIcon: Icon(Icons.calendar_today),
+
+                        // suffix icon pakai asset PNG
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Image.asset(
+                            'assets/icons/calendar.png',
+                            width: 22,
+                            height: 22,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       readOnly: true,
                       onTap: () async {
@@ -815,13 +1057,21 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: timeController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Waktu Pandu Naik Kapal *',
                         hintText: 'Pilih waktu',
                         border: OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        suffixIcon: Icon(Icons.access_time),
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Image.asset(
+                            'assets/icons/clock.png',
+                            width: 22,
+                            height: 22,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       readOnly: true,
                       onTap: () async {

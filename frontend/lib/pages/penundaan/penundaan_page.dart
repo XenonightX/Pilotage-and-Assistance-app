@@ -24,7 +24,8 @@ class _PenundaanPageState extends State<PenundaanPage> {
     'selesai': '0'
   };
 
-  final String baseUrl = 'http://192.168.1.20/pilotage_and_assistance_app/api';
+  // final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
   @override
   void initState() {
@@ -449,7 +450,7 @@ class _PenundaanPageState extends State<PenundaanPage> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
-          headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
+          headingRowColor: WidgetStateProperty.all(Colors.grey[100]),
           columns: const [
             DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
             DataColumn(label: Text('Nama Kapal', style: TextStyle(fontWeight: FontWeight.bold))),
