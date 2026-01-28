@@ -39,8 +39,11 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   String vesselType = 'Motor'; // Motor atau Tug & Tongkang
   bool _isLoading = false;
 
-  // final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
-  final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
+  // Assist Tug variables - now supports multiple tugs
+  List<Map<String, String>> selectedAssistTugs = [];
+
+  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  // final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
   @override
   void initState() {
@@ -73,6 +76,41 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
   Future<void> _submitData() async {
     if (!_formKey.currentState!.validate()) {
+      print('========== Form tidak valid! ==========');
+      print('Vessel Type: $vesselType');
+      print('Vessel Name: ${vesselController.text}');
+      print('Tug Name: ${tugNameController.text}');
+      print('Barge Name: ${bargeNameController.text}');
+      print('Call Sign: ${callSignController.text}');
+      print('Master: ${masterController.text}');
+      print('Flag: ${flagController.text}');
+      print('Agency: ${agencyController.text}');
+      print('GT Tug: ${gtTugController.text}');
+      print('GT Barge: ${gtBargeController.text}');
+      print('LOA Tug: ${loaTugController.text}');
+      print('LOA Barge: ${loaBargeController.text}');
+      print('Foredraft: ${foredraftController.text}');
+      print('Aftdraft: ${aftdraftController.text}');
+      print('Pilot: ${pilotController.text}');
+      print('Jetty: ${jettyController.text}');
+      print('Last Port: ${lastPortController.text}');
+      print('Next Port: ${nextPortController.text}');
+      print(
+        'Assist Tugs: ${selectedAssistTugs.map((tug) => '${tug['name']} (${tug['power']} HP)').join(', ')}',
+      );
+      print('Date: ${dateController.text}');
+      print('Time: ${timeController.text}');
+      print('=======================================');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Mohon lengkapi semua field yang wajib diisi (bertanda *)',
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
       return;
     }
 
@@ -96,11 +134,11 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
       String fromWhere, toWhere;
       if (selectedDirection == 'IN') {
-        fromWhere = 'Laut';
+        fromWhere = 'LAUT';
         toWhere = jettyController.text;
       } else {
         fromWhere = jettyController.text;
-        toWhere = 'Laut';
+        toWhere = 'LAUT';
       }
 
       // Format GT dan LOA sesuai jenis kapal
@@ -109,12 +147,10 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
       String vesselName;
 
       if (vesselType == 'Motor') {
-        // Kapal Motor: hanya satu nilai
         vesselName = vesselController.text;
         grossTonnage = gtTugController.text;
         loa = loaTugController.text;
       } else {
-        // Tug & Tongkang: format "Tug/Barge" dan gabungkan nama
         vesselName = tugNameController.text.trim();
         if (bargeNameController.text.trim().isNotEmpty) {
           vesselName += '/${bargeNameController.text.trim()}';
@@ -154,16 +190,34 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         "to_where": toWhere,
         "last_port": lastPortController.text,
         "next_port": nextPortController.text,
+        "assist_tug_name": selectedAssistTugs.isEmpty
+            ? null
+            : selectedAssistTugs.map((tug) => tug['name']).join(', '),
+        "engine_power": selectedAssistTugs.isEmpty
+            ? null
+            : selectedAssistTugs.map((tug) => tug['power']).join(', '),
+        "bollard_pull_power": null,
         "date": dbDate,
         "pilot_on_board": '$dbDate $dbTime',
         "status": "Terjadwal",
       };
+
+      // ====== DEBUGGING: Print data yang akan dikirim ======
+      print('========== DATA YANG DIKIRIM KE API ==========');
+      print(jsonEncode(data));
+      print('==============================================');
 
       final response = await http.post(
         Uri.parse('$baseUrl/add_pilotages.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(data),
       );
+
+      // ====== DEBUGGING: Print response dari server ======
+      print('========== RESPONSE DARI SERVER ==========');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      print('==========================================');
 
       final result = jsonDecode(response.body);
 
@@ -181,6 +235,10 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         throw Exception(result['message']);
       }
     } catch (e) {
+      print('========== ERROR ==========');
+      print(e);
+      print('===========================');
+
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -996,6 +1054,185 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 12),
+
+                    // Tombol Tambah Assist Tug
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // Show dialog with dropdown
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            String selectedTug = 'TB. MEGAMAS VISHA';
+                            return StatefulBuilder(
+                              builder: (context, setState) {
+                                return AlertDialog(
+                                  title: const Text('Pilih Tug Boat Bantuan'),
+                                  content: DropdownButtonFormField<String>(
+                                    value: selectedTug,
+                                    items: [
+                                      DropdownMenuItem(
+                                        value: 'TB. MEGAMAS VISHA',
+                                        child: Text(
+                                          'TB. MEGAMAS VISHA - 2060 HP / 25 TON',
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'TB. HEMINGWAY 2400',
+                                        child: Text(
+                                          'TB. HEMINGWAY 2400 - 2400 HP / 24 TON',
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'TB. ORIENT VICTORY 1',
+                                        child: Text(
+                                          'TB. ORIENT VICTORY 1 - 3500 HP / 44 TON',
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      setState(() {
+                                        selectedTug = value!;
+                                      });
+                                    },
+                                    decoration: const InputDecoration(
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Batal'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        // Check if tug already selected
+                                        bool alreadySelected =
+                                            selectedAssistTugs.any(
+                                              (tug) =>
+                                                  tug['name'] == selectedTug,
+                                            );
+                                        if (alreadySelected) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Tug Boat ini sudah dipilih',
+                                              ),
+                                              backgroundColor: Colors.orange,
+                                            ),
+                                          );
+                                          return;
+                                        }
+
+                                        // Handle selection
+                                        this.setState(() {
+                                          String power = '';
+                                          if (selectedTug ==
+                                              'TB. Megamas Visha') {
+                                            power = '2060';
+                                          } else if (selectedTug ==
+                                              'TB. Hemingway 2400') {
+                                            power = '2400';
+                                          } else if (selectedTug ==
+                                              'TB. Orient Victory 1') {
+                                            power = '3500';
+                                          }
+                                          selectedAssistTugs.add({
+                                            'name': selectedTug,
+                                            'power': power,
+                                          });
+                                        });
+                                        Navigator.pop(context);
+                                      },
+                                      child: const Text('Tambah'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Tambah Assist Tug'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Display selected assist tugs
+                    if (selectedAssistTugs.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.grey.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Assist Tug yang Dipilih:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ...selectedAssistTugs.map(
+                              (tug) => Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.grey.withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${tug['name']} - ${tug['power']} HP',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          selectedAssistTugs.remove(tug);
+                                        });
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     const SizedBox(height: 12),
 
                     TextFormField(

@@ -93,8 +93,8 @@ class _RegisterPageState extends State<RegisterPage> {
       print("📤 Sending data: $requestBody"); // Debug print
 
       final response = await http.post(
-        // Uri.parse('http://192.168.0.9/pilotage_and_assistance_app/backend/auth/register.php'),
-        Uri.parse('http://192.168.1.15/pilotage_and_assistance_app/backend/auth/register.php'),
+        Uri.parse('http://192.168.0.9/pilotage_and_assistance_app/backend/auth/register.php'),
+        // Uri.parse('http://192.168.1.15/pilotage_and_assistance_app/backend/auth/register.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(requestBody),
       );

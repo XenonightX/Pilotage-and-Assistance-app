@@ -24,8 +24,8 @@ class _PenundaanPageState extends State<PenundaanPage> {
     'selesai': '0'
   };
 
-  // final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
-  final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  // final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
   @override
   void initState() {

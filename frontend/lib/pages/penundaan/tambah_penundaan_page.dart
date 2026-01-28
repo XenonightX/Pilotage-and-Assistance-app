@@ -46,8 +46,8 @@ class _TambahPenundaanPageState extends State<TambahPenundaanPage> {
   String vesselType = 'Motor';
   bool _isLoading = false;
 
-  // final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
-  final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  // final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
   @override
   void initState() {
@@ -82,138 +82,150 @@ class _TambahPenundaanPageState extends State<TambahPenundaanPage> {
     super.dispose();
   }
 
-  Future<void> _submitData() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
+Future<void> _submitData() async {
+  if (!_formKey.currentState!.validate()) {
+    return;
+  }
+
+  if (selectedDate == null || selectedTime == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Tanggal dan waktu harus diisi!'),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    final dbDate =
+        '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
+    final dbTime =
+        '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00';
+
+    String fromWhere, toWhere;
+    if (selectedDirection == 'IN') {
+      fromWhere = 'Laut';
+      toWhere = jettyController.text;
+    } else {
+      fromWhere = jettyController.text;
+      toWhere = 'Laut';
     }
 
-    if (selectedDate == null || selectedTime == null) {
+    String grossTonnage;
+    String loa;
+    String vesselName;
+
+    if (vesselType == 'Motor') {
+      vesselName = vesselController.text;
+      grossTonnage = gtTugController.text;
+      loa = loaTugController.text;
+    } else {
+      vesselName = tugNameController.text.trim();
+      if (bargeNameController.text.trim().isNotEmpty) {
+        vesselName += '/${bargeNameController.text.trim()}';
+      }
+
+      grossTonnage = gtTugController.text;
+      if (gtBargeController.text.isNotEmpty) {
+        grossTonnage += '/${gtBargeController.text}';
+      }
+
+      loa = loaTugController.text;
+      if (loaBargeController.text.isNotEmpty) {
+        loa += '/${loaBargeController.text}';
+      }
+    }
+
+    final data = {
+      "vessel_name": vesselName,
+      "call_sign": callSignController.text.isEmpty ? null : callSignController.text,
+      "master_name": masterController.text.isEmpty ? null : masterController.text,
+      "flag": flagController.text,
+      "gross_tonnage": grossTonnage,
+      "agency": agencyController.text,
+      "loa": loa,
+      "fore_draft": foredraftController.text.isEmpty ? null : foredraftController.text,
+      "aft_draft": aftdraftController.text.isEmpty ? null : aftdraftController.text,
+      "from_where": fromWhere,
+      "to_where": toWhere,
+      "last_port": lastPortController.text,
+      "next_port": nextPortController.text,
+      "date": dbDate,
+      "assistance_start": '$dbDate $dbTime',
+      "status": "Terjadwal",
+      "assist_tug_count": tugCount,
+      "assist_tug_name_1": assistTugNameController1.text,
+      "engine_power_1": enginePowerController1.text.isEmpty ? null : int.tryParse(enginePowerController1.text),
+      "assist_tug_name_2": tugCount == 2 ? assistTugNameController2.text : null,
+      "engine_power_2": (tugCount == 2 && enginePowerController2.text.isNotEmpty)
+          ? int.tryParse(enginePowerController2.text)
+          : null,
+    };
+
+    // ✅ PRINT DATA YANG DIKIRIM
+    print('=== DATA DIKIRIM ===');
+    print(jsonEncode(data));
+    print('===================');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/add_assistances.php'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(data),
+    );
+
+    // ✅ PRINT RESPONSE MENTAH
+    print('=== RESPONSE STATUS ===');
+    print('Status Code: ${response.statusCode}');
+    print('=== RESPONSE BODY (RAW) ===');
+    print(response.body);
+    print('===========================');
+
+    // ✅ CEK APAKAH RESPONSE VALID JSON
+    if (response.body.trim().isEmpty) {
+      throw Exception('Server mengembalikan response kosong');
+    }
+
+    // ✅ CEK APAKAH RESPONSE DIMULAI DENGAN '{'
+    if (!response.body.trim().startsWith('{')) {
+      throw Exception('Response bukan JSON. Response: ${response.body.substring(0, 200)}');
+    }
+
+    final result = jsonDecode(response.body);
+
+    if (result['status'] == 'success') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data berhasil ditambahkan!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } else {
+      throw Exception(result['message'] ?? 'Gagal menambahkan data');
+    }
+  } catch (e) {
+    print('=== ERROR ===');
+    print(e.toString());
+    print('=============');
+    
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tanggal dan waktu harus diisi!'),
+        SnackBar(
+          content: Text('Gagal menambahkan data: ${e.toString()}'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         ),
       );
-      return;
     }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final dbDate =
-          '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
-      final dbTime =
-          '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00';
-
-      String fromWhere, toWhere;
-      if (selectedDirection == 'IN') {
-        fromWhere = 'Laut';
-        toWhere = jettyController.text;
-      } else {
-        fromWhere = jettyController.text;
-        toWhere = 'Laut';
-      }
-
-      // Format GT dan LOA sesuai jenis kapal
-      String grossTonnage;
-      String loa;
-      String vesselName;
-
-      if (vesselType == 'Motor') {
-        vesselName = vesselController.text;
-        grossTonnage = gtTugController.text;
-        loa = loaTugController.text;
-      } else {
-        vesselName = tugNameController.text.trim();
-        if (bargeNameController.text.trim().isNotEmpty) {
-          vesselName += '/${bargeNameController.text.trim()}';
-        }
-
-        grossTonnage = gtTugController.text;
-        if (gtBargeController.text.isNotEmpty) {
-          grossTonnage += '/${gtBargeController.text}';
-        }
-
-        loa = loaTugController.text;
-        if (loaBargeController.text.isNotEmpty) {
-          loa += '/${loaBargeController.text}';
-        }
-      }
-
-      final data = {
-        "vessel_name": vesselName,
-        "call_sign": callSignController.text.isEmpty
-            ? null
-            : callSignController.text,
-        "master_name": masterController.text.isEmpty
-            ? null
-            : masterController.text,
-        "flag": flagController.text,
-        "gross_tonnage": grossTonnage,
-        "agency": agencyController.text,
-        "loa": loa,
-        "fore_draft": foredraftController.text.isEmpty
-            ? null
-            : foredraftController.text,
-        "aft_draft": aftdraftController.text.isEmpty
-            ? null
-            : aftdraftController.text,
-        "from_where": fromWhere,
-        "to_where": toWhere,
-        "last_port": lastPortController.text,
-        "next_port": nextPortController.text,
-        "date": dbDate,
-        "assistance_start": '$dbDate $dbTime',
-        "status": "Terjadwal",
-
-        // ✅ Data kapal tunda
-        "assist_tug_count": tugCount,
-        "assist_tug_name_1": assistTugNameController1.text,
-        "engine_power_1": enginePowerController1.text.isEmpty
-            ? null
-            : int.tryParse(enginePowerController1.text),
-
-        // Kapal tunda ke-2 (jika ada)
-        "assist_tug_name_2": tugCount == 2
-            ? assistTugNameController2.text
-            : null,
-        "engine_power_2":
-            (tugCount == 2 && enginePowerController2.text.isNotEmpty)
-            ? int.tryParse(enginePowerController2.text)
-            : null,
-      };
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/add_assistances.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data),
-      );
-
-      final result = jsonDecode(response.body);
-
-      if (result['status'] == 'success') {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Data berhasil ditambahkan!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pop(context, true);
-        }
-      } else {
-        throw Exception(result['message']);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal menambahkan data: $e')));
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {

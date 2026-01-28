@@ -22,12 +22,10 @@ try {
     $sqlActive = "SELECT COUNT(*) as total FROM pilotage_logs WHERE status = 'Aktif'";
     $sqlCompleted = "SELECT COUNT(*) as total FROM pilotage_logs WHERE status = 'Selesai'";
     $sqlScheduled = "SELECT COUNT(*) as total FROM pilotage_logs WHERE status = 'Terjadwal'";
-
-    // Opsi B: Hitung data HARI INI saja (hapus komentar di bawah)
-    // $sqlTotal = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today'";
-    // $sqlActive = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Aktif'";
-    // $sqlCompleted = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Selesai'";
-    // $sqlScheduled = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Terjadwal'";
+    $sqlTotal = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today'";
+    $sqlActive = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Aktif'";
+    $sqlCompleted = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Selesai'";
+    $sqlScheduled = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Terjadwal'";
 
     // Execute queries
     $resultTotal = $conn->query($sqlTotal);

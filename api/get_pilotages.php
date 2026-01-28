@@ -58,7 +58,7 @@ try {
     }
 
     // Query 1: Count total records
-    $countSql = "SELECT COUNT(*) as total FROM pilotage_logs" . $whereClause;
+    $countSql = "SELECT COUNT(*) as total FROM activity_logs" . $whereClause;
     $stmtCount = $conn->prepare($countSql);
     
     if (!$stmtCount) {
@@ -75,7 +75,7 @@ try {
     $stmtCount->close();
 
     // Query 2: Get paginated data
-    $dataSql = "SELECT * FROM pilotage_logs" . $whereClause;
+    $dataSql = "SELECT * FROM activity_logs" . $whereClause;
     $dataSql .= " ORDER BY date DESC, pilot_on_board DESC, id DESC";
     $dataSql .= " LIMIT ? OFFSET ?";
 

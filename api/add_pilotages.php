@@ -30,10 +30,10 @@ try {
     $agency = $data["agency"] ?? '';
     $loa = $data["loa"] ?? '';
     $pilot_name = $data["pilot_name"] ?? '';
-    $from_where = $data["from_where"] ?? '';  // Laut/Dermaga
-    $to_where = $data["to_where"] ?? '';      // Dermaga/Laut
-    $last_port = $data["last_port"] ?? '';    // Pelabuhan asal
-    $next_port = $data["next_port"] ?? '';    // Pelabuhan tujuan
+    $from_where = $data["from_where"] ?? '';
+    $to_where = $data["to_where"] ?? '';
+    $last_port = $data["last_port"] ?? '';
+    $next_port = $data["next_port"] ?? '';
     $date = $data["date"] ?? '';
     $pilot_on_board = $data["pilot_on_board"] ?? '';
     
@@ -42,42 +42,42 @@ try {
     $master_name = $data["master_name"] ?? null;
     $fore_draft = $data["fore_draft"] ?? null;
     $aft_draft = $data["aft_draft"] ?? null;
-    $pilot_finished = $data["pilot_finished"] ?? null;
-    $vessel_start = $data["vessel_start"] ?? null;
-    $pilot_get_off = $data["pilot_get_off"] ?? null;
+    $assist_tug_name = $data["assist_tug_name"] ?? null;
+    $engine_power = $data["engine_power"] ?? null;
+    $bollard_pull_power = $data["bollard_pull_power"] ?? 0;
     $status = $data["status"] ?? 'Terjadwal';
 
-    // Validasi hanya field wajib
+    // Validasi field wajib
     if (empty($vessel_name) || empty($flag) || empty($gross_tonnage) || 
-        empty($agency) || empty($loa) || empty($pilot_name) || 
-        empty($from_where) || empty($to_where) ||
-        empty($last_port) || empty($next_port) || empty($date)) {
+        empty($agency) || empty($loa) || empty($pilot_name) ||
+        empty($from_where) || empty($to_where) || empty($last_port) || 
+        empty($next_port) || empty($date) || empty($pilot_on_board)) {
         throw new Exception("Data tidak lengkap");
     }
 
-    $sql = "INSERT INTO pilotage_logs (
-                vessel_name, call_sign, master_name, flag, gross_tonnage, 
-                agency, loa, fore_draft, aft_draft, pilot_name, 
-                from_where, to_where, last_port, next_port, date, pilot_on_board, 
-                pilot_finished, vessel_start, pilot_get_off, status
+    $sql = "INSERT INTO activity_logs (
+                vessel_name, call_sign, master_name, flag, gross_tonnage,
+                agency, loa, fore_draft, aft_draft, pilot_name,
+                from_where, to_where, last_port, next_port, date, pilot_on_board,
+                assist_tug_name, engine_power, bollard_pull_power, status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
 
     $stmt->bind_param(
-        "ssssssssssssssssssss", 
+        "ssssssssssssssssssss",
         $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
         $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
         $from_where, $to_where, $last_port, $next_port, $date, $pilot_on_board,
-        $pilot_finished, $vessel_start, $pilot_get_off, $status
+        $assist_tug_name, $engine_power, $bollard_pull_power, $status
     );
 
     if ($stmt->execute()) {
         ob_end_clean();
         echo json_encode([
             "status" => "success",
-            "message" => "Data berhasil ditambahkan",
+            "message" => "Data pemanduan berhasil ditambahkan",
             "id" => $conn->insert_id
         ]);
     } else {
