@@ -52,30 +52,36 @@ try {
     $pilot_finished = $data["pilot_finished"] ?? null;
     $vessel_start = $data["vessel_start"] ?? null;
     $pilot_get_off = $data["pilot_get_off"] ?? null;
+    $assist_tug_name = $data["assist_tug_name"] ?? null;
+    $engine_power = $data["engine_power"] ?? null;
+    $bollard_pull_power = $data["bollard_pull_power"] ?? null;
     $status = $data["status"] ?? 'Terjadwal';
 
     error_log("🔄 Updating ID: $id with from_where: $from_where, to_where: $to_where");
 
-    $sql = "UPDATE pilotage_logs SET 
-                vessel_name = ?, 
-                call_sign = ?, 
-                master_name = ?, 
-                flag = ?, 
-                gross_tonnage = ?, 
-                agency = ?, 
-                loa = ?, 
-                fore_draft = ?, 
-                aft_draft = ?, 
+    $sql = "UPDATE pilotage_logs SET
+                vessel_name = ?,
+                call_sign = ?,
+                master_name = ?,
+                flag = ?,
+                gross_tonnage = ?,
+                agency = ?,
+                loa = ?,
+                fore_draft = ?,
+                aft_draft = ?,
                 pilot_name = ?,
                 from_where = ?,
                 to_where = ?,
-                last_port = ?, 
-                next_port = ?, 
-                date = ?, 
+                last_port = ?,
+                next_port = ?,
+                date = ?,
                 pilot_on_board = ?,
                 pilot_finished = ?,
                 vessel_start = ?,
                 pilot_get_off = ?,
+                assist_tug_name = ?,
+                engine_power = ?,
+                bollard_pull_power = ?,
                 status = ?
             WHERE id = ?";
 

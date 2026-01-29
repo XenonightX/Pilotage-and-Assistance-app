@@ -486,7 +486,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                   children: [
                                     Expanded(
                                       child: _buildStatCard(
-                                        'Total Pemanduan',
+                                        'Total Kegiatan',
                                         _stats['total']!,
                                         Icons.assessment,
                                         Colors.blue,
@@ -649,7 +649,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                   }
                                 },
                                 icon: const Icon(Icons.add),
-                                label: const Text('Tambah'),
+                                label: const Text('Tambah Kegiatan'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color.fromARGB(
                                     255,
@@ -676,7 +676,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                'Daftar Pemanduan',
+                                'Daftar Kegiatan',
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
@@ -768,7 +768,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       ),
                       const SizedBox(width: 8),
                       const Text(
-                        "Pemanduan",
+                        "Pemanduan & Penundaan",
                         style: TextStyle(
                           color: Color.fromRGBO(12, 10, 80, 1),
                           fontWeight: FontWeight.bold,
@@ -933,6 +933,14 @@ class _PemanduanPageState extends State<PemanduanPage> {
     } catch (e) {
       return '$dateTime (LT)';
     }
+  }
+
+  String _formatMultipleValues(String value) {
+    if (value.isEmpty || value == '-') return '-';
+    // Split by comma and format each value
+    final values = value.split(',');
+    if (values.length <= 1) return value;
+    return values.map((v) => v.trim()).join('\n');
   }
 
   Widget _buildTable() {
@@ -1390,11 +1398,17 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 _formatTimeOnly(data['pilot_get_off']),
               ),
               const Divider(height: 24),
-              _buildDetailRow('Assist Tug', data['assist_tug_name'] ?? '-'),
-              _buildDetailRow('Engine Power', data['engine_power'] ?? '-'),
+              _buildDetailRow(
+                'Assist Tug',
+                _formatMultipleValues(data['assist_tug_name'] ?? '-'),
+              ),
+              _buildDetailRow(
+                'Engine Power',
+                _formatMultipleValues(data['engine_power'] ?? '-'),
+              ),
               _buildDetailRow(
                 'Bollard Pull Power',
-                data['bollard_pull_power'] ?? '-',
+                _formatMultipleValues(data['bollard_pull_power'] ?? '-'),
               ),
               _buildDetailRow('Status', data['status'] ?? '-'),
             ],
@@ -1524,6 +1538,40 @@ class _PemanduanPageState extends State<PemanduanPage> {
       jettyController.text = data['from_where'] ?? '';
     }
 
+    // Predefined assist tug options
+    final List<Map<String, String>> assistTugOptions = [
+      {'name': 'TB. MEGAMAS VISHA', 'power': '2060', 'bollard_pull': '25'},
+      {'name': 'TB. HEMINGWAY 2400', 'power': '2400', 'bollard_pull': '24'},
+      {'name': 'TB. ORIENT VICTORY 1', 'power': '3500', 'bollard_pull': '44'},
+    ];
+
+    // Parse assist tug data
+    List<Map<String, String>> selectedAssistTugs = [];
+    final assistTugNames = (data['assist_tug_name'] ?? '').split(',');
+    final enginePowers = (data['engine_power'] ?? '').split(',');
+    final bollardPulls = (data['bollard_pull_power'] ?? '').split(',');
+
+    for (int i = 0; i < assistTugNames.length; i++) {
+      if (assistTugNames[i].trim().isNotEmpty) {
+        selectedAssistTugs.add({
+          'name': assistTugNames[i].trim(),
+          'power': i < enginePowers.length ? enginePowers[i].trim() : '',
+          'bollard_pull': i < bollardPulls.length ? bollardPulls[i].trim() : '',
+        });
+      }
+    }
+
+    // Prepare assist tug data for update
+    final assistTugName = selectedAssistTugs.isEmpty
+        ? null
+        : selectedAssistTugs.map((tug) => tug['name']).join(', ');
+    final enginePower = selectedAssistTugs.isEmpty
+        ? null
+        : selectedAssistTugs.map((tug) => tug['power']).join(', ');
+    final bollardPullPower = selectedAssistTugs.isEmpty
+        ? null
+        : selectedAssistTugs.map((tug) => tug['bollard_pull']).join(', ');
+
     // Time Picker Helper
     Future<void> selectTime(
       BuildContext context,
@@ -1610,34 +1658,58 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   if (vesselType == 'Motor') ...[
                     TextField(
                       controller: vesselController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Nama Kapal Motor *',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.directions_boat),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(9),
+                          child: Image.asset(
+                            'assets/icons/vessel.png',
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                     ),
                   ] else ...[
                     TextField(
                       controller: tugNameController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Nama Tug Boat *',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.directions_boat),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(9),
+                          child: Image.asset(
+                            'assets/icons/tugboat.png',
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: bargeNameController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Nama Tongkang *',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(Icons.anchor),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(5),
+                          child: Image.asset(
+                            'assets/icons/barge.png',
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -1645,36 +1717,60 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
                   TextField(
                     controller: callSignController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Call Sign',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.radio),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(9),
+                        child: Image.asset(
+                          'assets/icons/call_sign.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
 
                   TextField(
                     controller: masterController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Nama Nahkoda',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.person_outline),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: Image.asset(
+                          'assets/icons/pilot.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
 
                   TextField(
                     controller: flagController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Bendera Kapal *',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.flag),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Image.asset(
+                          'assets/icons/flag.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1743,12 +1839,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
                   TextField(
                     controller: agencyController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Keagenan Kapal *',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.business),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Image.asset(
+                          'assets/icons/agency.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1826,12 +1930,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Sarat Muka (meter)',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.straighten),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: Image.asset(
+                          'assets/icons/draft.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1841,12 +1953,171 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Sarat Belakang (meter)',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.straighten),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: Image.asset(
+                          'assets/icons/draft.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Assist Tug Section
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.directions_boat,
+                              size: 18,
+                              color: Colors.orange[700],
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Assist Tug',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          child: DropdownButtonFormField<Map<String, String>>(
+                            decoration: InputDecoration(
+                              labelText: 'Tambah Assist Tug',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Image.asset(
+                                  'assets/icons/tugboat.png',
+                                  width: 20,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                            items: assistTugOptions.map((tug) {
+                              return DropdownMenuItem<Map<String, String>>(
+                                value: tug,
+                                child: Text(
+                                  '${tug['name']} - ${tug['power']} HP / ${tug['bollard_pull']} TON',
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (Map<String, String>? selectedTug) {
+                              if (selectedTug != null) {
+                                // Check if tug already selected
+                                bool alreadySelected = selectedAssistTugs.any(
+                                  (tug) => tug['name'] == selectedTug['name'],
+                                );
+
+                                if (alreadySelected) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Assist Tug ini sudah ditambah',
+                                      ),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                setDialogState(() {
+                                  selectedAssistTugs.add(selectedTug);
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (selectedAssistTugs.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.grey.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Assist Tug yang Dipilih:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ...selectedAssistTugs.map(
+                                  (tug) => Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.grey.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            '${tug['name']} - ${tug['power']} HP / ${tug['bollard_pull']} TON',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.delete,
+                                            color: Colors.red,
+                                          ),
+                                          onPressed: () {
+                                            setDialogState(() {
+                                              selectedAssistTugs.remove(tug);
+                                            });
+                                          },
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -1864,12 +2135,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
                   TextField(
                     controller: pilotController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Nama Pandu *',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.person),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: Image.asset(
+                          'assets/icons/pilot.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1921,24 +2200,40 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
                   TextField(
                     controller: lastPortController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Pelabuhan Asal *',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.location_on),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: Image.asset(
+                          'assets/icons/location.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
 
                   TextField(
                     controller: nextPortController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Pelabuhan Tujuan *',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.place),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: Image.asset(
+                          'assets/icons/location.png',
+                          width: 15,
+                          height: 20,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -2237,6 +2532,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     "to_where": toWhere,
                     "last_port": lastPortController.text,
                     "next_port": nextPortController.text,
+                    "assist_tug_name": assistTugName,
+                    "engine_power": enginePower,
+                    "bollard_pull_power": bollardPullPower,
                     "date": data['date'],
                     "pilot_on_board": pilotOnBoard,
                     "pilot_finished": pilotFinished,

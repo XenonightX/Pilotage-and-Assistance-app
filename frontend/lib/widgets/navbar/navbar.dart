@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pilotage_and_assistance_app/pages/profile/profile_page.dart';
 import '../../pages/settings/settings_page.dart';
 import '../../pages/pemanduan/pemanduan_page.dart';
-import '../../pages/penundaan/penundaan_page.dart';
+
 import '../../../pages/login/login_page.dart';
 
 class ResponsiveNavBarPage extends StatefulWidget {
@@ -152,34 +152,20 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
           (item) => ListTile(
             onTap: () {
               Navigator.pop(context);
-              if (item == 'Pemanduan') {
-                Navigator.push(
-                  context,
+              if (item == 'Pemanduan & Penundaan') {
+                Navigator.of(context, rootNavigator: true).push(
                   MaterialPageRoute(
                     builder: (context) => const PemanduanPage(),
                   ),
                 );
-              } else if (item == 'Penundaan') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PenundaanPage(),
-                  ),
-                );
               }
             },
-            leading: item == 'Pemanduan'
-                ? Image.asset(
-                    'assets/icons/pilot1.png',
-                    width: 28,
-                    height: 27,
-                  )
-                : Image.asset(
-                    'assets/icons/tugboat.png',
-                    width: 28,
-                    height: 28,
-                  ),
-                  
+            leading: Image.asset(
+              'assets/icons/pilot1.png',
+              width: 28,
+              height: 27,
+            ),
+
             title: Text(
               item,
               style: const TextStyle(
@@ -200,15 +186,10 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
       children: _menuItems.map((item) {
         return InkWell(
           onTap: () {
-            if (item == 'Pemanduan') {
+            if (item == 'Pemanduan & Penundaan') {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const PemanduanPage()),
-              );
-            } else if (item == 'Penundaan') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PenundaanPage()),
               );
             }
           },
@@ -241,7 +222,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
   }
 }
 
-final List<String> _menuItems = ['Pemanduan', 'Penundaan'];
+final List<String> _menuItems = ['Pemanduan & Penundaan'];
 
 enum Menu { itemOne, itemTwo, itemThree }
 

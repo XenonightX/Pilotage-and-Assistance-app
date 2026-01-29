@@ -1,7 +1,21 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:pilotage_and_assistance_app/utils/user_session.dart';
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
 
 class TambahPemanduanPage extends StatefulWidget {
   const TambahPemanduanPage({super.key});
@@ -42,6 +56,9 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   // Assist Tug variables - now supports multiple tugs
   List<Map<String, String>> selectedAssistTugs = [];
 
+  // Predefined assist tug options
+  late List<Map<String, String>> assistTugOptions;
+
   final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
   // final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
@@ -49,6 +66,11 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   void initState() {
     super.initState();
     pilotController.text = UserSession.userName ?? '';
+    assistTugOptions = [
+      {'name': 'TB. MEGAMAS VISHA', 'power': '2060', 'bollard_pull': '25'},
+      {'name': 'TB. HEMINGWAY 2400', 'power': '2400', 'bollard_pull': '24'},
+      {'name': 'TB. ORIENT VICTORY 1', 'power': '3500', 'bollard_pull': '44'},
+    ];
   }
 
   @override
@@ -196,7 +218,9 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         "engine_power": selectedAssistTugs.isEmpty
             ? null
             : selectedAssistTugs.map((tug) => tug['power']).join(', '),
-        "bollard_pull_power": null,
+        "bollard_pull_power": selectedAssistTugs.isEmpty
+            ? null
+            : selectedAssistTugs.map((tug) => tug['bollard_pull']).join(', '),
         "date": dbDate,
         "pilot_on_board": '$dbDate $dbTime',
         "status": "Terjadwal",
@@ -362,6 +386,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     if (vesselType == 'Motor') ...[
                       TextFormField(
                         controller: vesselController,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [UpperCaseTextFormatter()],
                         decoration: InputDecoration(
                           labelText: 'Nama Kapal Motor *',
                           border: const OutlineInputBorder(),
@@ -387,6 +413,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     ] else ...[
                       TextFormField(
                         controller: tugNameController,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [UpperCaseTextFormatter()],
                         decoration: InputDecoration(
                           labelText: 'Nama Tug Boat *',
                           hintText: 'Contoh: TB. Bintang Laut',
@@ -413,6 +441,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: bargeNameController,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [UpperCaseTextFormatter()],
                         decoration: InputDecoration(
                           labelText: 'Nama Tongkang *',
                           hintText: 'Contoh: BG. Jaya 01',
@@ -442,6 +472,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     // Field Call Sign - Wajib untuk Motor, Opsional untuk Tug
                     TextFormField(
                       controller: callSignController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
                       decoration: InputDecoration(
                         labelText: vesselType == 'Motor'
                             ? 'Call Sign / Nama Panggilan *'
@@ -473,6 +505,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     // Field Nama Nahkoda - Wajib untuk Motor, Opsional untuk Tug
                     TextFormField(
                       controller: masterController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
                       decoration: InputDecoration(
                         labelText: vesselType == 'Motor'
                             ? 'Nama Nahkoda *'
@@ -503,6 +537,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: flagController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
                       decoration: InputDecoration(
                         labelText: 'Bendera Kapal *',
                         hintText: 'Contoh: Indonesia, Singapore',
@@ -530,6 +566,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: agencyController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
                       decoration: InputDecoration(
                         labelText: 'Keagenan Kapal *',
                         border: OutlineInputBorder(),
@@ -975,6 +1013,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: jettyController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
                       decoration: InputDecoration(
                         labelText: 'Nama Jetty *',
                         hintText: selectedDirection == 'IN'
@@ -1004,6 +1044,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: lastPortController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
                       decoration: InputDecoration(
                         labelText: 'Pelabuhan Asal *',
                         hintText: 'Contoh: Singapore, Jakarta',
@@ -1031,6 +1073,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
                     TextFormField(
                       controller: nextPortController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
                       decoration: InputDecoration(
                         labelText: 'Pelabuhan Tujuan *',
                         hintText: 'Contoh: Batam, Singapore',
@@ -1056,114 +1100,64 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Tombol Tambah Assist Tug
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        // Show dialog with dropdown
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            String selectedTug = 'TB. MEGAMAS VISHA';
-                            return StatefulBuilder(
-                              builder: (context, setState) {
-                                return AlertDialog(
-                                  title: const Text('Pilih Tug Boat Bantuan'),
-                                  content: DropdownButtonFormField<String>(
-                                    value: selectedTug,
-                                    items: [
-                                      DropdownMenuItem(
-                                        value: 'TB. MEGAMAS VISHA',
-                                        child: Text(
-                                          'TB. MEGAMAS VISHA - 2060 HP / 25 TON',
-                                        ),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'TB. HEMINGWAY 2400',
-                                        child: Text(
-                                          'TB. HEMINGWAY 2400 - 2400 HP / 24 TON',
-                                        ),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'TB. ORIENT VICTORY 1',
-                                        child: Text(
-                                          'TB. ORIENT VICTORY 1 - 3500 HP / 44 TON',
-                                        ),
-                                      ),
-                                    ],
-                                    onChanged: (value) {
-                                      setState(() {
-                                        selectedTug = value!;
-                                      });
-                                    },
-                                    decoration: const InputDecoration(
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Batal'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        // Check if tug already selected
-                                        bool alreadySelected =
-                                            selectedAssistTugs.any(
-                                              (tug) =>
-                                                  tug['name'] == selectedTug,
-                                            );
-                                        if (alreadySelected) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Tug Boat ini sudah dipilih',
-                                              ),
-                                              backgroundColor: Colors.orange,
-                                            ),
-                                          );
-                                          return;
-                                        }
-
-                                        // Handle selection
-                                        this.setState(() {
-                                          String power = '';
-                                          if (selectedTug ==
-                                              'TB. Megamas Visha') {
-                                            power = '2060';
-                                          } else if (selectedTug ==
-                                              'TB. Hemingway 2400') {
-                                            power = '2400';
-                                          } else if (selectedTug ==
-                                              'TB. Orient Victory 1') {
-                                            power = '3500';
-                                          }
-                                          selectedAssistTugs.add({
-                                            'name': selectedTug,
-                                            'power': power,
-                                          });
-                                        });
-                                        Navigator.pop(context);
-                                      },
-                                      child: const Text('Tambah'),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                        );
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Tambah Assist Tug'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange[700],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // Dropdown Pilih Assist Tug
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.amber.shade400,
+                          width: 2,
                         ),
+                      ),
+                      child: DropdownButtonFormField<Map<String, String>>(
+                        decoration: InputDecoration(
+                          labelText: 'Pilih Assist Tug',
+                          border: InputBorder.none,
+                          filled: false,
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Image.asset(
+                              'assets/icons/tugboat.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        items: assistTugOptions.isNotEmpty
+                            ? assistTugOptions.map((tug) {
+                                return DropdownMenuItem<Map<String, String>>(
+                                  value: tug,
+                                  child: Text(
+                                    '${tug['name']} - ${tug['power']} HP / ${tug['bollard_pull']} TON',
+                                  ),
+                                );
+                              }).toList()
+                            : [],
+                        onChanged: (Map<String, String>? selectedTug) {
+                          if (selectedTug != null) {
+                            // Check if tug already selected
+                            bool alreadySelected = selectedAssistTugs.any(
+                              (tug) => tug['name'] == selectedTug['name'],
+                            );
+
+                            if (alreadySelected) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Tug Boat ini sudah dipilih'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+
+                            setState(() {
+                              selectedAssistTugs.add(selectedTug);
+                            });
+                          }
+                        },
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1205,7 +1199,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        '${tug['name']} - ${tug['power']} HP',
+                                        '${tug['name']} - ${tug['power']} HP / ${tug['bollard_pull']} TON',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -1454,7 +1448,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                       ),
                       const SizedBox(width: 8),
                       const Text(
-                        "Tambah Pemanduan Baru",
+                        "Tambah Kegiatan Baru",
                         style: TextStyle(
                           color: Color.fromRGBO(12, 10, 80, 1),
                           fontWeight: FontWeight.bold,
