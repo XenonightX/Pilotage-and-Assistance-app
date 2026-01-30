@@ -16,16 +16,16 @@ try {
     date_default_timezone_set('Asia/Jakarta');
     $today = date('Y-m-d');
 
-    // ✅ PILIH SALAH SATU: 
+    // ✅ PILIH SALAH SATU:
     // Opsi A: Hitung SEMUA data (hapus komentar di bawah)
-    $sqlTotal = "SELECT COUNT(*) as total FROM pilotage_logs";
-    $sqlActive = "SELECT COUNT(*) as total FROM pilotage_logs WHERE status = 'Aktif'";
-    $sqlCompleted = "SELECT COUNT(*) as total FROM pilotage_logs WHERE status = 'Selesai'";
-    $sqlScheduled = "SELECT COUNT(*) as total FROM pilotage_logs WHERE status = 'Terjadwal'";
-    $sqlTotal = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today'";
-    $sqlActive = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Aktif'";
-    $sqlCompleted = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Selesai'";
-    $sqlScheduled = "SELECT COUNT(*) as total FROM pilotage_logs WHERE DATE(date) = '$today' AND status = 'Terjadwal'";
+    $sqlTotal = "SELECT COUNT(*) as total FROM activity_logs";
+    $sqlActive = "SELECT COUNT(*) as total FROM activity_logs WHERE status = 'Aktif'";
+    $sqlCompleted = "SELECT COUNT(*) as total FROM activity_logs WHERE status = 'Selesai'";
+    $sqlScheduled = "SELECT COUNT(*) as total FROM activity_logs WHERE status = 'Terjadwal'";
+    $sqlTotal = "SELECT COUNT(*) as total FROM activity_logs WHERE DATE(date) = '$today'";
+    $sqlActive = "SELECT COUNT(*) as total FROM activity_logs WHERE DATE(date) = '$today' AND status = 'Aktif'";
+    $sqlCompleted = "SELECT COUNT(*) as total FROM activity_logs WHERE DATE(date) = '$today' AND status = 'Selesai'";
+    $sqlScheduled = "SELECT COUNT(*) as total FROM activity_logs WHERE DATE(date) = '$today' AND status = 'Terjadwal'";
 
     // Execute queries
     $resultTotal = $conn->query($sqlTotal);

@@ -1446,7 +1446,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   void _showEditDialog(BuildContext context, Map<String, dynamic> data) {
     final vesselNameParts = (data['vessel_name'] ?? '').split('/');
-    final String vesselType = vesselNameParts.length > 1 ? 'Tug' : 'Motor';
+    String vesselType = vesselNameParts.length > 1 ? 'Tug' : 'Motor';
 
     final vesselController = TextEditingController(
       text: vesselType == 'Motor' ? data['vessel_name'] : '',
@@ -1561,17 +1561,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
       }
     }
 
-    // Prepare assist tug data for update
-    final assistTugName = selectedAssistTugs.isEmpty
-        ? null
-        : selectedAssistTugs.map((tug) => tug['name']).join(', ');
-    final enginePower = selectedAssistTugs.isEmpty
-        ? null
-        : selectedAssistTugs.map((tug) => tug['power']).join(', ');
-    final bollardPullPower = selectedAssistTugs.isEmpty
-        ? null
-        : selectedAssistTugs.map((tug) => tug['bollard_pull']).join(', ');
-
     // Time Picker Helper
     Future<void> selectTime(
       BuildContext context,
@@ -1607,801 +1596,617 @@ class _PemanduanPageState extends State<PemanduanPage> {
               selectedStatus == 'Aktif' || selectedStatus == 'Selesai';
 
           return AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
             title: Text('Edit Pemanduan ID: ${data['id']}'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.withOpacity(0.3)),
+            content: Container(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Vessel Type Selection
+                    const Text(
+                      'Tipe Kapal',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    child: Row(
+                    const SizedBox(height: 8),
+                    Row(
                       children: [
-                        Icon(
-                          vesselType == 'Motor'
-                              ? Icons.directions_boat
-                              : Icons.anchor,
-                          color: Colors.grey[700],
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Jenis Kapal: ${vesselType == 'Motor' ? 'Kapal Motor' : 'Tug & Tongkang'}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[700],
-                            fontSize: 14,
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('Motor'),
+                            value: 'Motor',
+                            groupValue: vesselType,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                vesselType = value!;
+                              });
+                            },
+                            dense: true,
                           ),
                         ),
-                        const Spacer(),
-                        Icon(Icons.lock, size: 16, color: Colors.grey[600]),
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('Tug'),
+                            value: 'Tug',
+                            groupValue: vesselType,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                vesselType = value!;
+                              });
+                            },
+                            dense: true,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  Text(
-                    'Data Kapal',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[700],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (vesselType == 'Motor') ...[
-                    TextField(
-                      controller: vesselController,
-                      decoration: InputDecoration(
-                        labelText: 'Nama Kapal Motor *',
-                        border: const OutlineInputBorder(),
-                        filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.all(9),
-                          child: Image.asset(
-                            'assets/icons/vessel.png',
-                            width: 15,
-                            height: 20,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ] else ...[
-                    TextField(
-                      controller: tugNameController,
-                      decoration: InputDecoration(
-                        labelText: 'Nama Tug Boat *',
-                        border: const OutlineInputBorder(),
-                        filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.all(9),
-                          child: Image.asset(
-                            'assets/icons/tugboat.png',
-                            width: 15,
-                            height: 20,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: bargeNameController,
-                      decoration: InputDecoration(
-                        labelText: 'Nama Tongkang *',
-                        border: const OutlineInputBorder(),
-                        filled: true,
-                        fillColor: Colors.white,
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.all(5),
-                          child: Image.asset(
-                            'assets/icons/barge.png',
-                            width: 15,
-                            height: 20,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: callSignController,
-                    decoration: InputDecoration(
-                      labelText: 'Call Sign',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(9),
-                        child: Image.asset(
-                          'assets/icons/call_sign.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: masterController,
-                    decoration: InputDecoration(
-                      labelText: 'Nama Nahkoda',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(7),
-                        child: Image.asset(
-                          'assets/icons/pilot.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: flagController,
-                    decoration: InputDecoration(
-                      labelText: 'Bendera Kapal *',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Image.asset(
-                          'assets/icons/flag.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Gross Tonnage Section
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.scale,
-                              size: 18,
-                              color: Colors.blue[700],
+                    // Vessel Name Fields
+                    if (vesselType == 'Motor') ...[
+                      TextField(
+                        controller: vesselController,
+                        decoration: InputDecoration(
+                          labelText: 'Nama Kapal',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(9),
+                            child: Image.asset(
+                              'assets/icons/vessel.png',
+                              width: 15,
+                              height: 20,
+                              fit: BoxFit.contain,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Gross Tonnage (GT)',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue[700],
-                                fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: tugNameController,
+                              decoration: InputDecoration(
+                                labelText: 'Nama Tug',
+                                border: const OutlineInputBorder(),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.all(9),
+                                  child: Image.asset(
+                                    'assets/icons/tugboat.png',
+                                    width: 15,
+                                    height: 20,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: gtTugController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: vesselType == 'Motor'
-                                ? 'GT Kapal Motor *'
-                                : 'GT Tug Boat *',
-                            border: const OutlineInputBorder(),
-                            filled: true,
-                            fillColor: Colors.white,
-                            prefixIcon: const Icon(Icons.directions_boat),
                           ),
-                        ),
-                        if (vesselType == 'Tug') ...[
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: gtBargeController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'GT Tongkang *',
-                              border: OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Colors.white,
-                              prefixIcon: Icon(Icons.anchor),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: bargeNameController,
+                              decoration: InputDecoration(
+                                labelText: 'Nama Tongkang',
+                                border: const OutlineInputBorder(),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.all(5),
+                                  child: Image.asset(
+                                    'assets/icons/barge.png',
+                                    width: 15,
+                                    height: 20,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: agencyController,
-                    decoration: InputDecoration(
-                      labelText: 'Keagenan Kapal *',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Image.asset(
-                          'assets/icons/agency.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                    ],
+                    const SizedBox(height: 16),
 
-                  // LOA Section
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // Basic Info
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.straighten,
-                              size: 18,
-                              color: Colors.green[700],
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Panjang Kapal (LOA)',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green[700],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: loaTugController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: vesselType == 'Motor'
-                                ? 'LOA Kapal Motor (meter) *'
-                                : 'LOA Tug Boat (meter) *',
-                            border: const OutlineInputBorder(),
-                            filled: true,
-                            fillColor: Colors.white,
-                            prefixIcon: const Icon(Icons.directions_boat),
-                            suffixText: 'm',
-                          ),
-                        ),
-                        if (vesselType == 'Tug') ...[
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: loaBargeController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'LOA Tongkang (meter) *',
-                              border: OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Colors.white,
-                              prefixIcon: Icon(Icons.anchor),
-                              suffixText: 'm',
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: foredraftController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Sarat Muka (meter)',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(7),
-                        child: Image.asset(
-                          'assets/icons/draft.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: aftdraftController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Sarat Belakang (meter)',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(7),
-                        child: Image.asset(
-                          'assets/icons/draft.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Assist Tug Section
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.directions_boat,
-                              size: 18,
-                              color: Colors.orange[700],
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Assist Tug',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange[700],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          child: DropdownButtonFormField<Map<String, String>>(
+                        Expanded(
+                          child: TextField(
+                            controller: callSignController,
                             decoration: InputDecoration(
-                              labelText: 'Tambah Assist Tug',
-                              border: OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Colors.white,
+                              labelText: 'Call Sign',
+                              border: const OutlineInputBorder(),
                               prefixIcon: Padding(
-                                padding: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(9),
                                 child: Image.asset(
-                                  'assets/icons/tugboat.png',
-                                  width: 20,
+                                  'assets/icons/call_sign.png',
+                                  width: 15,
                                   height: 20,
                                   fit: BoxFit.contain,
                                 ),
                               ),
                             ),
-                            items: assistTugOptions.map((tug) {
-                              return DropdownMenuItem<Map<String, String>>(
-                                value: tug,
-                                child: Text(
-                                  '${tug['name']} - ${tug['power']} HP / ${tug['bollard_pull']} TON',
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (Map<String, String>? selectedTug) {
-                              if (selectedTug != null) {
-                                // Check if tug already selected
-                                bool alreadySelected = selectedAssistTugs.any(
-                                  (tug) => tug['name'] == selectedTug['name'],
-                                );
-
-                                if (alreadySelected) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Assist Tug ini sudah ditambah',
-                                      ),
-                                      backgroundColor: Colors.orange,
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                setDialogState(() {
-                                  selectedAssistTugs.add(selectedTug);
-                                });
-                              }
-                            },
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        if (selectedAssistTugs.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.grey.withOpacity(0.3),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: masterController,
+                            decoration: InputDecoration(
+                              labelText: 'Nama Nahkoda',
+                              border: const OutlineInputBorder(),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(7),
+                                child: Image.asset(
+                                  'assets/icons/pilot.png',
+                                  width: 15,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Assist Tug yang Dipilih:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: flagController,
+                            decoration: InputDecoration(
+                              labelText: 'Bendera',
+                              border: const OutlineInputBorder(),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(6),
+                                child: Image.asset(
+                                  'assets/icons/flag.png',
+                                  width: 15,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: agencyController,
+                            decoration: InputDecoration(
+                              labelText: 'Keagenan',
+                              border: const OutlineInputBorder(),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Image.asset(
+                                  'assets/icons/agency.png',
+                                  width: 15,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Gross Tonnage
+                    if (vesselType == 'Motor') ...[
+                      TextField(
+                        controller: gtTugController,
+                        decoration: InputDecoration(
+                          labelText: 'Gross Tonnage',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Image.asset(
+                              'assets/icons/vessel.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ] else ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: gtTugController,
+                              decoration: InputDecoration(
+                                labelText: 'GT Tug',
+                                border: const OutlineInputBorder(),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Image.asset(
+                                    'assets/icons/tugboat.png',
+                                    width: 20,
+                                    height: 20,
+                                    fit: BoxFit.contain,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                ...selectedAssistTugs.map(
-                                  (tug) => Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: Colors.grey.withOpacity(0.3),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '${tug['name']} - ${tug['power']} HP / ${tug['bollard_pull']} TON',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.delete,
-                                            color: Colors.red,
-                                          ),
-                                          onPressed: () {
-                                            setDialogState(() {
-                                              selectedAssistTugs.remove(tug);
-                                            });
-                                          },
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                        ),
-                                      ],
-                                    ),
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: gtBargeController,
+                              decoration: InputDecoration(
+                                labelText: 'GT Tongkang',
+                                border: const OutlineInputBorder(),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.all(5),
+                                  child: Image.asset(
+                                    'assets/icons/barge.png',
+                                    width: 15,
+                                    height: 20,
+                                    fit: BoxFit.contain,
                                   ),
                                 ),
-                              ],
+                              ),
+                              keyboardType: TextInputType.number,
                             ),
                           ),
                         ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Informasi Pemanduan Section
-                  Text(
-                    'Informasi Pemanduan',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[700],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: pilotController,
-                    decoration: InputDecoration(
-                      labelText: 'Nama Pandu *',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(7),
-                        child: Image.asset(
-                          'assets/icons/pilot.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                    ],
+                    const SizedBox(height: 16),
 
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedDirection,
-                    decoration: const InputDecoration(
-                      labelText: 'Arah Pemanduan *',
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Icon(Icons.swap_horiz),
-                    ),
-                    items: ['IN', 'OUT']
-                        .map(
-                          (direction) => DropdownMenuItem(
-                            value: direction,
-                            child: Text(
-                              direction == 'IN'
-                                  ? 'IN (Masuk dari Laut ke Jetty)'
-                                  : 'OUT (Keluar dari Jetty ke Laut)',
+                    // LOA
+                    if (vesselType == 'Motor') ...[
+                      TextField(
+                        controller: loaTugController,
+                        decoration: InputDecoration(
+                          labelText: 'LOA (meter)',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(7),
+                            child: Image.asset(
+                              'assets/icons/loa.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
                             ),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedDirection = value!;
-                        jettyController.clear();
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: jettyController,
-                    decoration: InputDecoration(
-                      labelText: 'Nama Jetty *',
-                      hintText: selectedDirection == 'IN'
-                          ? 'Jetty tujuan'
-                          : 'Jetty asal',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: const Icon(Icons.anchor),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: lastPortController,
-                    decoration: InputDecoration(
-                      labelText: 'Pelabuhan Asal *',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(7),
-                        child: Image.asset(
-                          'assets/icons/location.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
                         ),
+                        keyboardType: TextInputType.number,
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: nextPortController,
-                    decoration: InputDecoration(
-                      labelText: 'Pelabuhan Tujuan *',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.all(7),
-                        child: Image.asset(
-                          'assets/icons/location.png',
-                          width: 15,
-                          height: 20,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedStatus,
-                    decoration: const InputDecoration(
-                      labelText: 'Status *',
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    items: ['Terjadwal', 'Aktif', 'Selesai']
-                        .map(
-                          (status) => DropdownMenuItem(
-                            value: status,
-                            child: Text(status),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedStatus = value!;
-                      });
-                    },
-                  ),
-
-                  // Conditional Time Fields based on Status
-                  if (showTimeFields) ...[
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.orange.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    ] else ...[
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.access_time,
-                                size: 18,
-                                color: Colors.orange[700],
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Waktu Pemanduan',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange[700],
-                                  fontSize: 14,
+                          Expanded(
+                            child: TextField(
+                              controller: loaTugController,
+                              decoration: InputDecoration(
+                                labelText: 'LOA Tug (m)',
+                                border: const OutlineInputBorder(),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.all(7),
+                                  child: Image.asset(
+                                    'assets/icons/loa.png',
+                                    width: 20,
+                                    height: 20,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Pilot On Board (Always shown for Aktif & Selesai)
-                          TextField(
-                            controller: pilotOnBoardController,
-                            readOnly: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Pandu Naik Kapal *',
-                              hintText: 'HH:MM',
-                              border: OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Colors.white,
-                              prefixIcon: Icon(Icons.login),
-                              suffixIcon: Icon(Icons.access_time),
+                              keyboardType: TextInputType.number,
                             ),
-                            onTap: () =>
-                                selectTime(context, pilotOnBoardController),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: loaBargeController,
+                              decoration: InputDecoration(
+                                labelText: 'LOA Tongkang (m)',
+                                border: const OutlineInputBorder(),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.all(7),
+                                  child: Image.asset(
+                                    'assets/icons/loa.png',
+                                    width: 20,
+                                    height: 20,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 16),
 
-                          // Vessel Start (shown for Aktif & Selesai)
-                          TextField(
-                            controller: vesselStartController,
-                            readOnly: true,
+                    // Draft
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: foredraftController,
                             decoration: InputDecoration(
-                              labelText:
-                                  'Kapal Bergerak ${selectedStatus == 'Selesai' ? '*' : ''}',
-                              hintText: 'HH:MM',
-                              border: OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Colors.white,
-                              prefixIcon: Icon(Icons.sailing),
-                              suffixIcon: Icon(Icons.access_time),
+                              labelText: 'Sarat Muka (m)',
+                              border: const OutlineInputBorder(),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(7),
+                                child: Image.asset(
+                                  'assets/icons/draft.png',
+                                  width: 15,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
                             ),
-                            onTap: () =>
-                                selectTime(context, vesselStartController),
+                            keyboardType: TextInputType.number,
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: aftdraftController,
+                            decoration: InputDecoration(
+                              labelText: 'Sarat Belakang (m)',
+                              border: const OutlineInputBorder(),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.all(7),
+                                child: Image.asset(
+                                  'assets/icons/draft.png',
+                                  width: 15,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
 
-                          // Additional fields only for "Selesai" status
-                          if (selectedStatus == 'Selesai') ...[
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: pilotFinishedController,
-                              readOnly: true,
+                    // Pilot and Ports
+                    TextField(
+                      controller: pilotController,
+                      decoration: InputDecoration(
+                        labelText: 'Nama Pandu',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(7),
+                          child: Image.asset(
+                            'assets/icons/pilot.png',
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: lastPortController,
+                            decoration: const InputDecoration(
+                              labelText: 'Pelabuhan Asal',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: nextPortController,
+                            decoration: const InputDecoration(
+                              labelText: 'Pelabuhan Tujuan',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Direction Selection
+                    const Text(
+                      'Arah Pemanduan',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('IN'),
+                            value: 'IN',
+                            groupValue: selectedDirection,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                selectedDirection = value!;
+                              });
+                            },
+                            dense: true,
+                          ),
+                        ),
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('OUT'),
+                            value: 'OUT',
+                            groupValue: selectedDirection,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                selectedDirection = value!;
+                              });
+                            },
+                            dense: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Jetty
+                    TextField(
+                      controller: jettyController,
+                      decoration: InputDecoration(
+                        labelText: 'Dermaga',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(7),
+                          child: Image.asset(
+                            'assets/icons/jetty.png',
+                            width: 15,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Status Selection
+                    const Text(
+                      'Status',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: selectedStatus,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ['Terjadwal', 'Aktif', 'Selesai']
+                          .map(
+                            (status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(status),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedStatus = value!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Time Fields (shown only for Aktif or Selesai)
+                    if (showTimeFields) ...[
+                      const Text(
+                        'Waktu Pemanduan',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: pilotOnBoardController,
                               decoration: const InputDecoration(
-                                labelText: 'Pandu Selesai *',
-                                hintText: 'HH:MM',
+                                labelText: 'Pandu Naik Kapal',
                                 border: OutlineInputBorder(),
-                                filled: true,
-                                fillColor: Colors.white,
-                                prefixIcon: Icon(Icons.check_circle_outline),
                                 suffixIcon: Icon(Icons.access_time),
                               ),
+                              readOnly: true,
+                              onTap: () =>
+                                  selectTime(context, pilotOnBoardController),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: pilotFinishedController,
+                              decoration: const InputDecoration(
+                                labelText: 'Pandu Selesai',
+                                border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.access_time),
+                              ),
+                              readOnly: true,
                               onTap: () =>
                                   selectTime(context, pilotFinishedController),
                             ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: pilotGetOffController,
-                              readOnly: true,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: vesselStartController,
                               decoration: const InputDecoration(
-                                labelText: 'Pandu Turun *',
-                                hintText: 'HH:MM',
+                                labelText: 'Kapal Bergerak',
                                 border: OutlineInputBorder(),
-                                filled: true,
-                                fillColor: Colors.white,
-                                prefixIcon: Icon(Icons.logout),
                                 suffixIcon: Icon(Icons.access_time),
                               ),
+                              readOnly: true,
+                              onTap: () =>
+                                  selectTime(context, vesselStartController),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: pilotGetOffController,
+                              decoration: const InputDecoration(
+                                labelText: 'Pandu Turun',
+                                border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.access_time),
+                              ),
+                              readOnly: true,
                               onTap: () =>
                                   selectTime(context, pilotGetOffController),
-                            ),
-                          ],
-
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.blue[50],
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  size: 16,
-                                  color: Colors.blue[700],
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    selectedStatus == 'Aktif'
-                                        ? 'Status Aktif: Isi waktu pandu naik kapal dan kapal bergerak'
-                                        : 'Status Selesai: Isi semua waktu pemanduan',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.blue[700],
-                                    ),
-                                  ),
-                                ),
-                              ],
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Assist Tug Selection
+                    const Text(
+                      'Assist Tug',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: assistTugOptions.map((tug) {
+                        final isSelected = selectedAssistTugs.any(
+                          (selected) => selected['name'] == tug['name'],
+                        );
+                        return FilterChip(
+                          label: Text(tug['name']!),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setDialogState(() {
+                              if (selected) {
+                                selectedAssistTugs.add(Map.from(tug));
+                              } else {
+                                selectedAssistTugs.removeWhere(
+                                  (selectedTug) =>
+                                      selectedTug['name'] == tug['name'],
+                                );
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
                     ),
                   ],
-                ],
+                ),
               ),
             ),
             actions: [
@@ -2410,141 +2215,74 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 child: const Text('Batal'),
               ),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
-                  foregroundColor: Colors.white,
-                ),
                 onPressed: () async {
-                  // Validation
-                  if (jettyController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Nama Jetty wajib diisi!'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
+                  // Collect form data
+                  final vesselName = vesselType == 'Motor'
+                      ? vesselController.text.trim()
+                      : '${tugNameController.text.trim()}/${bargeNameController.text.trim()}';
 
-                  // Validate time fields based on status
-                  if (showTimeFields) {
-                    if (pilotOnBoardController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Waktu Pandu Naik Kapal wajib diisi!'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
+                  final grossTonnage = vesselType == 'Motor'
+                      ? gtTugController.text.trim()
+                      : '${gtTugController.text.trim()}/${gtBargeController.text.trim()}';
 
-                    if (selectedStatus == 'Selesai') {
-                      if (vesselStartController.text.trim().isEmpty ||
-                          pilotFinishedController.text.trim().isEmpty ||
-                          pilotGetOffController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Semua waktu pemanduan wajib diisi untuk status Selesai!',
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
-                    }
-                  }
+                  final loa = vesselType == 'Motor'
+                      ? loaTugController.text.trim()
+                      : '${loaTugController.text.trim()}/${loaBargeController.text.trim()}';
 
-                  String fromWhere, toWhere;
-                  if (selectedDirection == 'IN') {
-                    fromWhere = 'Laut';
-                    toWhere = jettyController.text.trim();
-                  } else {
-                    fromWhere = jettyController.text.trim();
-                    toWhere = 'Laut';
-                  }
+                  final fromWhere = selectedDirection == 'IN'
+                      ? 'LAUT'
+                      : jettyController.text.trim();
+                  final toWhere = selectedDirection == 'IN'
+                      ? jettyController.text.trim()
+                      : 'LAUT';
 
-                  String vesselName;
-                  if (vesselType == 'Motor') {
-                    vesselName = vesselController.text.trim();
-                  } else {
-                    vesselName = tugNameController.text.trim();
-                    if (bargeNameController.text.trim().isNotEmpty) {
-                      vesselName += '/${bargeNameController.text.trim()}';
-                    }
-                  }
-
-                  String grossTonnage = gtTugController.text.trim();
-                  if (vesselType == 'Tug' &&
-                      gtBargeController.text.trim().isNotEmpty) {
-                    grossTonnage += '/${gtBargeController.text.trim()}';
-                  }
-
-                  String loa = loaTugController.text.trim();
-                  if (vesselType == 'Tug' &&
-                      loaBargeController.text.trim().isNotEmpty) {
-                    loa += '/${loaBargeController.text.trim()}';
-                  }
-
-                  // Prepare datetime strings
-                  String? pilotOnBoard;
-                  String? pilotFinished;
-                  String? vesselStart;
-                  String? pilotGetOff;
-
-                  if (showTimeFields) {
-                    final dateStr =
-                        data['date'] ?? DateTime.now().toString().split(' ')[0];
-                    pilotOnBoard = '$dateStr ${pilotOnBoardController.text}:00';
-
-                    if (vesselStartController.text.isNotEmpty) {
-                      vesselStart = '$dateStr ${vesselStartController.text}:00';
-                    }
-
-                    if (selectedStatus == 'Selesai') {
-                      pilotFinished =
-                          '$dateStr ${pilotFinishedController.text}:00';
-                      pilotGetOff = '$dateStr ${pilotGetOffController.text}:00';
-                    }
-                  }
-
+                  // Prepare update data
                   final updateData = {
-                    "id": data['id'],
-                    "vessel_name": vesselName,
-                    "call_sign": callSignController.text.isEmpty
-                        ? null
-                        : callSignController.text,
-                    "master_name": masterController.text.isEmpty
-                        ? null
-                        : masterController.text,
-                    "flag": flagController.text,
-                    "gross_tonnage": grossTonnage,
-                    "agency": agencyController.text,
-                    "loa": loa,
-                    "fore_draft": foredraftController.text.isEmpty
-                        ? null
-                        : foredraftController.text,
-                    "aft_draft": aftdraftController.text.isEmpty
-                        ? null
-                        : aftdraftController.text,
-                    "pilot_name": pilotController.text,
-                    "from_where": fromWhere,
-                    "to_where": toWhere,
-                    "last_port": lastPortController.text,
-                    "next_port": nextPortController.text,
-                    "assist_tug_name": assistTugName,
-                    "engine_power": enginePower,
-                    "bollard_pull_power": bollardPullPower,
-                    "date": data['date'],
-                    "pilot_on_board": pilotOnBoard,
-                    "pilot_finished": pilotFinished,
-                    "vessel_start": vesselStart,
-                    "pilot_get_off": pilotGetOff,
-                    "status": selectedStatus,
+                    'id': data['id'],
+                    'vessel_name': vesselName,
+                    'call_sign': callSignController.text.trim(),
+                    'master_name': masterController.text.trim(),
+                    'flag': flagController.text.trim(),
+                    'gross_tonnage': grossTonnage,
+                    'agency': agencyController.text.trim(),
+                    'loa': loa,
+                    'fore_draft': foredraftController.text.trim(),
+                    'aft_draft': aftdraftController.text.trim(),
+                    'pilot_name': pilotController.text.trim(),
+                    'from_where': fromWhere,
+                    'to_where': toWhere,
+                    'last_port': lastPortController.text.trim(),
+                    'next_port': nextPortController.text.trim(),
+                    'status': selectedStatus,
                   };
 
-                  Navigator.pop(context);
+                  // Add time fields if status is Aktif or Selesai
+                  if (selectedStatus == 'Aktif' ||
+                      selectedStatus == 'Selesai') {
+                    final eventDate =
+                        data['date'] ??
+                        DateTime.now().toIso8601String().split('T')[0];
+                    updateData['pilot_on_board'] =
+                        pilotOnBoardController.text.isNotEmpty
+                        ? '${eventDate}T${pilotOnBoardController.text.replaceAll(' (LT)', '')}:00'
+                        : null;
+                    updateData['pilot_finished'] =
+                        pilotFinishedController.text.isNotEmpty
+                        ? '${eventDate}T${pilotFinishedController.text.replaceAll(' (LT)', '')}:00'
+                        : null;
+                    updateData['vessel_start'] =
+                        vesselStartController.text.isNotEmpty
+                        ? '${eventDate}T${vesselStartController.text.replaceAll(' (LT)', '')}:00'
+                        : null;
+                    updateData['pilot_get_off'] =
+                        pilotGetOffController.text.isNotEmpty
+                        ? '${eventDate}T${pilotGetOffController.text.replaceAll(' (LT)', '')}:00'
+                        : null;
+                  }
+
+                  // Call update function
                   await _updatePilotages(updateData);
+                  Navigator.pop(context);
                 },
                 child: const Text('Update'),
               ),
