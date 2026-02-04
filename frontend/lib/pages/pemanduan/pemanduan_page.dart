@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:pilotage_and_assistance_app/pages/pemanduan/tambah_pemanduan_page.dart';
 
 class PemanduanPage extends StatefulWidget {
@@ -14,6 +15,8 @@ class PemanduanPage extends StatefulWidget {
 class _PemanduanPageState extends State<PemanduanPage> {
   String _selectedFilter = 'Semua';
   final TextEditingController _searchController = TextEditingController();
+  DateTimeRange? _selectedDateRange;
+  String _dateFilterText = 'Semua Tanggal';
 
   List<Map<String, dynamic>> _pemanduanList = [];
   bool _isLoading = true;
@@ -69,14 +72,23 @@ class _PemanduanPageState extends State<PemanduanPage> {
     setState(() => _isLoading = true);
 
     try {
-      final uri = Uri.parse('$baseUrl/get_pilotages.php').replace(
-        queryParameters: {
-          'status': _selectedFilter != 'Semua' ? _selectedFilter : '',
-          'search': _searchController.text,
-          'page': _currentPage.toString(),
-          'limit': _rowsPerPage.toString(),
-        },
-      );
+      final queryParams = {
+        'status': _selectedFilter != 'Semua' ? _selectedFilter : '',
+        'search': _searchController.text,
+        'page': _currentPage.toString(),
+        'limit': _rowsPerPage.toString(),
+      };
+
+      if (_selectedDateRange != null) {
+        queryParams['start_date'] =
+            '${_selectedDateRange!.start.year}-${_selectedDateRange!.start.month.toString().padLeft(2, '0')}-${_selectedDateRange!.start.day.toString().padLeft(2, '0')}';
+        queryParams['end_date'] =
+            '${_selectedDateRange!.end.year}-${_selectedDateRange!.end.month.toString().padLeft(2, '0')}-${_selectedDateRange!.end.day.toString().padLeft(2, '0')}';
+      }
+
+      final uri = Uri.parse(
+        '$baseUrl/get_pilotages.php',
+      ).replace(queryParameters: queryParams);
 
       final response = await http.get(uri);
 
@@ -176,6 +188,49 @@ class _PemanduanPageState extends State<PemanduanPage> {
       });
       _fetchPilotages();
     }
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      initialDateRange:
+          _selectedDateRange ??
+          DateTimeRange(
+            start: DateTime.now(),
+            end: DateTime.now().add(const Duration(days: 7)),
+          ),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color.fromRGBO(0, 40, 120, 1),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null && picked != _selectedDateRange) {
+      setState(() {
+        _selectedDateRange = picked;
+        _dateFilterText =
+            '${picked.start.day}-${picked.start.month}-${picked.start.year} sampai ${picked.end.day}-${picked.end.month}-${picked.end.year}';
+        _currentPage = 1;
+      });
+      _fetchPilotages();
+    }
+  }
+
+  void _clearDateFilter() {
+    setState(() {
+      _selectedDateRange = null;
+      _dateFilterText = 'Semua Tanggal';
+      _currentPage = 1;
+    });
+    _fetchPilotages();
   }
 
   Widget _buildPaginationControls() {
@@ -633,6 +688,62 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                       _fetchPilotages();
                                     }
                                   },
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    InkWell(
+                                      onTap: () => _selectDate(context),
+                                      child: Row(
+                                        children: [
+                                          Text(
+                                            _dateFilterText,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: Color.fromRGBO(
+                                                12,
+                                                10,
+                                                80,
+                                                1,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Icon(
+                                            Icons.calendar_today,
+                                            size: 18,
+                                            color: Color.fromRGBO(
+                                              12,
+                                              10,
+                                              80,
+                                              1,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (_selectedDateRange != null) ...[
+                                      const SizedBox(width: 8),
+                                      InkWell(
+                                        onTap: _clearDateFilter,
+                                        child: const Icon(
+                                          Icons.clear,
+                                          size: 18,
+                                          color: Colors.red,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                               ElevatedButton.icon(
@@ -1155,8 +1266,21 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         onPressed: () => _showEditDialog(context, data),
                         tooltip: 'Edit',
                       ),
+                      // Tombol PDF untuk kegiatan yang sudah Selesai
+                      if (data['status'] == 'Selesai') ...[
+                        IconButton(
+                          icon: const Icon(
+                            Icons.picture_as_pdf,
+                            color: Colors.green,
+                            size: 20,
+                          ),
+                          onPressed: () =>
+                              _showPdfGenerationDialog(context, data['id']),
+                          tooltip: 'Generate PDF',
+                        ),
+                      ],
                       // Tombol Delete hanya muncul untuk Admin
-                      if (_isAdmin)
+                      if (_isAdmin) ...[
                         IconButton(
                           icon: const Icon(
                             Icons.delete,
@@ -1166,8 +1290,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           onPressed: () =>
                               _showDeleteConfirmation(context, data['id']),
                           tooltip: 'Hapus',
-                        )
-                      else
+                        ),
+                      ] else
                         IconButton(
                           icon: Icon(
                             Icons.delete,
@@ -1278,6 +1402,18 @@ class _PemanduanPageState extends State<PemanduanPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // Tombol PDF untuk kegiatan yang sudah Selesai
+                  if (data['status'] == 'Selesai') ...[
+                    TextButton.icon(
+                      onPressed: () =>
+                          _showPdfGenerationDialog(context, data['id']),
+                      icon: const Icon(Icons.picture_as_pdf, size: 18),
+                      label: const Text('PDF'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.green,
+                      ),
+                    ),
+                  ],
                   TextButton.icon(
                     onPressed: () => _showDetailDialog(context, data),
                     icon: const Icon(Icons.visibility, size: 18),
@@ -1503,7 +1639,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
       text: data['next_port'] ?? '',
     );
 
-    // Time Controllers
+    // Time Controllers - always load existing values
     final pilotOnBoardController = TextEditingController(
       text: data['pilot_on_board'] != null
           ? _formatTimeOnly(data['pilot_on_board'])
@@ -1530,10 +1666,15 @@ class _PemanduanPageState extends State<PemanduanPage> {
     String selectedDirection;
     final jettyController = TextEditingController();
 
-    if (data['from_where'] == 'Laut') {
+    // Determine direction based on which field contains 'LAUT'
+    if (data['from_where']?.toString().toLowerCase() == 'laut') {
       selectedDirection = 'IN';
       jettyController.text = data['to_where'] ?? '';
+    } else if (data['to_where']?.toString().toLowerCase() == 'laut') {
+      selectedDirection = 'OUT';
+      jettyController.text = data['from_where'] ?? '';
     } else {
+      // Fallback: assume OUT direction if neither field is 'LAUT'
       selectedDirection = 'OUT';
       jettyController.text = data['from_where'] ?? '';
     }
@@ -2254,30 +2395,45 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     'last_port': lastPortController.text.trim(),
                     'next_port': nextPortController.text.trim(),
                     'status': selectedStatus,
+                    'assist_tug_name': selectedAssistTugs
+                        .map((tug) => tug['name'])
+                        .join(','),
+                    'engine_power': selectedAssistTugs
+                        .map((tug) => tug['power'])
+                        .join(','),
+                    'bollard_pull_power': selectedAssistTugs
+                        .map((tug) => tug['bollard_pull'])
+                        .join(','),
                   };
 
-                  // Add time fields if status is Aktif or Selesai
+                  // Always include time fields to prevent null values
+                  updateData['pilot_on_board'] = data['pilot_on_board'];
+                  updateData['pilot_finished'] = data['pilot_finished'];
+                  updateData['vessel_start'] = data['vessel_start'];
+                  updateData['pilot_get_off'] = data['pilot_get_off'];
+
+                  // Update time fields if status is Aktif or Selesai and values are provided
                   if (selectedStatus == 'Aktif' ||
                       selectedStatus == 'Selesai') {
                     final eventDate =
                         data['date'] ??
                         DateTime.now().toIso8601String().split('T')[0];
-                    updateData['pilot_on_board'] =
-                        pilotOnBoardController.text.isNotEmpty
-                        ? '${eventDate}T${pilotOnBoardController.text.replaceAll(' (LT)', '')}:00'
-                        : null;
-                    updateData['pilot_finished'] =
-                        pilotFinishedController.text.isNotEmpty
-                        ? '${eventDate}T${pilotFinishedController.text.replaceAll(' (LT)', '')}:00'
-                        : null;
-                    updateData['vessel_start'] =
-                        vesselStartController.text.isNotEmpty
-                        ? '${eventDate}T${vesselStartController.text.replaceAll(' (LT)', '')}:00'
-                        : null;
-                    updateData['pilot_get_off'] =
-                        pilotGetOffController.text.isNotEmpty
-                        ? '${eventDate}T${pilotGetOffController.text.replaceAll(' (LT)', '')}:00'
-                        : null;
+                    if (pilotOnBoardController.text.isNotEmpty) {
+                      updateData['pilot_on_board'] =
+                          '${eventDate}T${pilotOnBoardController.text.replaceAll(' (LT)', '')}:00';
+                    }
+                    if (pilotFinishedController.text.isNotEmpty) {
+                      updateData['pilot_finished'] =
+                          '${eventDate}T${pilotFinishedController.text.replaceAll(' (LT)', '')}:00';
+                    }
+                    if (vesselStartController.text.isNotEmpty) {
+                      updateData['vessel_start'] =
+                          '${eventDate}T${vesselStartController.text.replaceAll(' (LT)', '')}:00';
+                    }
+                    if (pilotGetOffController.text.isNotEmpty) {
+                      updateData['pilot_get_off'] =
+                          '${eventDate}T${pilotGetOffController.text.replaceAll(' (LT)', '')}:00';
+                    }
                   }
 
                   // Call update function
@@ -2291,6 +2447,99 @@ class _PemanduanPageState extends State<PemanduanPage> {
         },
       ),
     );
+  }
+
+  void _showPdfGenerationDialog(BuildContext context, int id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pilih Jenis Form'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Silakan pilih jenis form yang ingin di-generate:'),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _generatePdf(id, 'pandu');
+                  },
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text('Form Pandu\n(2A1)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _generatePdf(id, 'tunda');
+                  },
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text('Form Tunda\n(2A2)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generatePdf(int id, String type) async {
+    try {
+      final url = type == 'pandu'
+          ? '$baseUrl/generate_pilot_certificate.php?id=$id'
+          : '$baseUrl/generate_mooring_certificate.php?id=$id';
+
+      // Open PDF in new tab/window
+      // Note: This assumes the API returns PDF content directly
+      // You may need to adjust based on your actual API implementation
+
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tidak dapat membuka PDF'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal generate PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showDeleteConfirmation(BuildContext context, int id) {

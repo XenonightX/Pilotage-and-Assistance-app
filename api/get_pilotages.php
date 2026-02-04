@@ -32,6 +32,8 @@ try {
     // Get parameters
     $status = $_GET['status'] ?? '';
     $search = $_GET['search'] ?? '';
+    $start_date = $_GET['start_date'] ?? '';
+    $end_date = $_GET['end_date'] ?? '';
     $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
     $limit = isset($_GET['limit']) ? max(1, intval($_GET['limit'])) : 10;
     
@@ -54,6 +56,13 @@ try {
         $searchParam = "%$search%";
         $params[] = $searchParam;
         $params[] = $searchParam;
+        $types .= "ss";
+    }
+
+    if (!empty($start_date) && !empty($end_date)) {
+        $whereClause .= " AND DATE(date) BETWEEN ? AND ?";
+        $params[] = $start_date;
+        $params[] = $end_date;
         $types .= "ss";
     }
 

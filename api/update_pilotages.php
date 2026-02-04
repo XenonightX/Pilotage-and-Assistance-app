@@ -55,6 +55,9 @@ try {
     if ($vessel_start === '') $vessel_start = null;
     $pilot_get_off = $data["pilot_get_off"] ?? null;
     if ($pilot_get_off === '') $pilot_get_off = null;
+    $assist_tug_name = $data["assist_tug_name"] ?? '';
+    $engine_power = $data["engine_power"] ?? '';
+    $bollard_pull_power = $data["bollard_pull_power"] ?? '';
     $status = $data["status"] ?? 'Terjadwal';
 
     error_log("🔄 Updating ID: $id with from_where: $from_where, to_where: $to_where");
@@ -78,6 +81,9 @@ try {
                 pilot_finished = ?,
                 vessel_start = ?,
                 pilot_get_off = ?,
+                assist_tug_name = ?,
+                engine_power = ?,
+                bollard_pull_power = ?,
                 status = ?
             WHERE id = ?";
 
@@ -87,11 +93,12 @@ try {
     }
 
     $bind_result = $stmt->bind_param(
-        "sssssssssssssssssssi",
+        "ssssssssssssssssssssssi",
         $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
         $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
         $from_where, $to_where, $last_port, $next_port, $pilot_on_board,
-        $pilot_finished, $vessel_start, $pilot_get_off, $status, $id
+        $pilot_finished, $vessel_start, $pilot_get_off, $assist_tug_name,
+        $engine_power, $bollard_pull_power, $status, $id
     );
 
     if (!$bind_result) {

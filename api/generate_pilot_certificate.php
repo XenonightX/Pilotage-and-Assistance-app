@@ -94,8 +94,8 @@ try {
     }
 
     // PILOT INFORMATION
-    putText($pdf, 30, 112, safeValue($data['from_location']), 'helvetica', '', 9);
-    putText($pdf, 95, 112, safeValue($data['to_location']), 'helvetica', '', 9);
+    putText($pdf, 30, 137, safeValue($data['from_where']), 'helvetica', '', 9);
+    putText($pdf, 95, 137, safeValue($data['to_where']), 'helvetica', '', 9);
 
     // Pilot Details
     putText($pdf, 30, 125, safeValue($data['pilot_name']), 'helvetica', '', 9);
@@ -128,46 +128,6 @@ try {
         }
     }
 
-    // TUG BOAT USAGE (up to 4 tug boats)
-    $tugBoats = [
-        ['name' => $data['tug_boat_1_name'] ?? '', 'engine_power' => $data['tug_boat_1_power'] ?? '',
-         'tk_power' => $data['tug_boat_1_tk_power'] ?? '', 'hp_time' => $data['tug_boat_1_hp_time'] ?? '',
-         'up_to' => $data['tug_boat_1_up_to'] ?? ''],
-        ['name' => $data['tug_boat_2_name'] ?? '', 'engine_power' => $data['tug_boat_2_power'] ?? '',
-         'tk_power' => $data['tug_boat_2_tk_power'] ?? '', 'hp_time' => $data['tug_boat_2_hp_time'] ?? '',
-         'up_to' => $data['tug_boat_2_up_to'] ?? ''],
-        ['name' => $data['tug_boat_3_name'] ?? '', 'engine_power' => $data['tug_boat_3_power'] ?? '',
-         'tk_power' => $data['tug_boat_3_tk_power'] ?? '', 'hp_time' => $data['tug_boat_3_hp_time'] ?? '',
-         'up_to' => $data['tug_boat_3_up_to'] ?? ''],
-        ['name' => $data['tug_boat_4_name'] ?? '', 'engine_power' => $data['tug_boat_4_power'] ?? '',
-         'tk_power' => $data['tug_boat_4_tk_power'] ?? '', 'hp_time' => $data['tug_boat_4_hp_time'] ?? '',
-         'up_to' => $data['tug_boat_4_up_to'] ?? '']
-    ];
-
-    $yStart = 162;
-    $yGap = 9;
-
-    foreach ($tugBoats as $idx => $tug) {
-        if (!empty($tug['name'])) {
-            $y = $yStart + ($idx * $yGap);
-            putText($pdf, 20, $y, safeValue($tug['name']), 'helvetica', '', 8);
-            putText($pdf, 70, $y, $tug['engine_power'], 'helvetica', '', 8);
-            putText($pdf, 105, $y, $tug['tk_power'], 'helvetica', '', 8);
-            putText($pdf, 135, $y, $tug['hp_time'], 'helvetica', '', 8);
-            putText($pdf, 165, $y, $tug['up_to'], 'helvetica', '', 8);
-        }
-    }
-
-    // Checkboxes untuk hari kerja (Isikan)
-    // Posisi sekitar y=200
-
-    // CATATAN
-    $note = "Jam Kerja Tug Boat dihitung selama pemakaian efektif ditambah waktu perjalanan dari dan ke pangkalan (" .
-            ($data['travel_time_minutes'] ?? '......') . " menit).";
-    putText($pdf, 20, 268, $note, 'helvetica', '', 7);
-    putText($pdf, 20, 273, "Catatlah dibalik bila ada berita/kejadian yang penting untuk diberitahukan", 'helvetica', '', 7);
-
-    // Output PDF
     $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $data['vessel_name'] ?? 'pilot_certificate');
     $filename = "Pilot_Certificate_{$safeName}_" . date('Ymd_His') . ".pdf";
     $pdf->Output($filename, 'I');
