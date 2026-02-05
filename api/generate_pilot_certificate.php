@@ -94,20 +94,22 @@ try {
     }
 
     // PILOT INFORMATION
-    putText($pdf, 30, 137, safeValue($data['from_where']), 'helvetica', '', 9);
-    putText($pdf, 95, 137, safeValue($data['to_where']), 'helvetica', '', 9);
+    putText($pdf, 21, 137.8, safeValue($data['from_where']), 'helvetica', '', 7);
+    putText($pdf, 77, 137.8, safeValue($data['to_where']), 'helvetica', '', 7);
 
     // Pilot Details
     putText($pdf, 30, 125, safeValue($data['pilot_name']), 'helvetica', '', 9);
     
     // Ship Start
     if (!empty($data['ship_start'])) {
-        putText($pdf, 120, 125, date('d-m-Y H:i', strtotime($data['ship_start'])), 'helvetica', '', 8);
+        $shipStartTime = date('H:i', strtotime($data['ship_start']));
+        putText($pdf, 160, 125, $shipStartTime, 'helvetica', '', 8);
     }
 
     // Pandu Turun (Pilot Get Off)
     if (!empty($data['pilot_get_off'])) {
-        putText($pdf, 120, 133, date('d-m-Y H:i', strtotime($data['pilot_get_off'])), 'helvetica', '', 8);
+        $offDate = date('d-m-Y', strtotime($data['pilot_get_off']));
+        putText($pdf, 154, 132, $offDate, 'helvetica', '', 14);
     }
 
     // Mooring/Unmooring Unit
