@@ -1,9 +1,26 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:pilotage_and_assistance_app/pages/pemanduan/tambah_pemanduan_page.dart';
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
 
 class PemanduanPage extends StatefulWidget {
   const PemanduanPage({super.key});
@@ -63,6 +80,14 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   // Check if user is admin
   bool get _isAdmin => _userRole.toLowerCase() == 'admin';
+
+  // Check if Android version is 11 or higher
+  Future<bool> _isAndroid11OrHigher() async {
+    if (!Platform.isAndroid) return false;
+    final version = await Platform.operatingSystemVersion;
+    final sdkInt = int.tryParse(version.split(' ')[1]) ?? 0;
+    return sdkInt >= 30; // Android 11 is API level 30
+  }
 
   Future<void> _loadData() async {
     await Future.wait([_fetchPilotages(), _fetchStats()]);
@@ -1274,8 +1299,11 @@ class _PemanduanPageState extends State<PemanduanPage> {
                             color: Colors.green,
                             size: 20,
                           ),
-                          onPressed: () =>
-                              _showPdfGenerationDialog(context, data['id']),
+                          onPressed: () => _showPdfGenerationDialog(
+                            context,
+                            data['id'],
+                            data,
+                          ),
                           tooltip: 'Generate PDF',
                         ),
                       ],
@@ -1406,7 +1434,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   if (data['status'] == 'Selesai') ...[
                     TextButton.icon(
                       onPressed: () =>
-                          _showPdfGenerationDialog(context, data['id']),
+                          _showPdfGenerationDialog(context, data['id'], data),
                       icon: const Icon(Icons.picture_as_pdf, size: 18),
                       label: const Text('PDF'),
                       style: TextButton.styleFrom(
@@ -1749,30 +1777,32 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Vessel Type Selection
-                    const Text(
-                      'Tipe Kapal',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
+                    // Pilihan Jenis Kapal
                     Row(
                       children: [
                         Expanded(
                           child: RadioListTile<String>(
-                            title: const Text('Motor'),
+                            title: const Text('KAPAL MOTOR'),
                             value: 'Motor',
                             groupValue: vesselType,
                             onChanged: (value) {
                               setDialogState(() {
                                 vesselType = value!;
+                                // Reset fields saat ganti jenis
+                                tugNameController.clear();
+                                bargeNameController.clear();
+                                gtBargeController.clear();
+                                loaBargeController.clear();
                               });
                             },
+                            activeColor: const Color.fromRGBO(0, 40, 120, 1),
                             dense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                         Expanded(
                           child: RadioListTile<String>(
-                            title: const Text('Tug'),
+                            title: const Text('TUG BOAT & TONGKANG'),
                             value: 'Tug',
                             groupValue: vesselType,
                             onChanged: (value) {
@@ -1780,20 +1810,26 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                 vesselType = value!;
                               });
                             },
+                            activeColor: const Color.fromRGBO(0, 40, 120, 1),
                             dense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
 
-                    // Vessel Name Fields
+                    // Conditional: Nama Kapal Motor atau Nama Tug Boat & Tongkang
                     if (vesselType == 'Motor') ...[
                       TextField(
                         controller: vesselController,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [UpperCaseTextFormatter()],
                         decoration: InputDecoration(
-                          labelText: 'Nama Kapal',
+                          labelText: 'Nama Kapal Motor *',
                           border: const OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.white,
                           prefixIcon: Padding(
                             padding: const EdgeInsets.all(9),
                             child: Image.asset(
@@ -1806,46 +1842,48 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         ),
                       ),
                     ] else ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: tugNameController,
-                              decoration: InputDecoration(
-                                labelText: 'Nama Tug',
-                                border: const OutlineInputBorder(),
-                                prefixIcon: Padding(
-                                  padding: const EdgeInsets.all(9),
-                                  child: Image.asset(
-                                    'assets/icons/tugboat.png',
-                                    width: 15,
-                                    height: 20,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              ),
+                      TextField(
+                        controller: tugNameController,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [UpperCaseTextFormatter()],
+                        decoration: InputDecoration(
+                          labelText: 'Nama Tug Boat *',
+                          hintText: 'Contoh: TB. Bintang Laut',
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(9),
+                            child: Image.asset(
+                              'assets/icons/tugboat.png',
+                              width: 15,
+                              height: 20,
+                              fit: BoxFit.contain,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: bargeNameController,
-                              decoration: InputDecoration(
-                                labelText: 'Nama Tongkang',
-                                border: const OutlineInputBorder(),
-                                prefixIcon: Padding(
-                                  padding: const EdgeInsets.all(5),
-                                  child: Image.asset(
-                                    'assets/icons/barge.png',
-                                    width: 15,
-                                    height: 20,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: bargeNameController,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [UpperCaseTextFormatter()],
+                        decoration: InputDecoration(
+                          labelText: 'Nama Tongkang *',
+                          hintText: 'Contoh: BG. Jaya 01',
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(5),
+                            child: Image.asset(
+                              'assets/icons/barge.png',
+                              width: 15,
+                              height: 20,
+                              fit: BoxFit.contain,
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ],
                     const SizedBox(height: 16),
@@ -2332,20 +2370,105 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           label: Text(tug['name']!),
                           selected: isSelected,
                           onSelected: (selected) {
-                            setDialogState(() {
-                              if (selected) {
+                            if (selected) {
+                              // Check if tug already selected
+                              bool alreadySelected = selectedAssistTugs.any(
+                                (selectedTug) =>
+                                    selectedTug['name'] == tug['name'],
+                              );
+
+                              if (alreadySelected) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Tug Boat ini sudah dipilih'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              setDialogState(() {
                                 selectedAssistTugs.add(Map.from(tug));
-                              } else {
+                              });
+                            } else {
+                              setDialogState(() {
                                 selectedAssistTugs.removeWhere(
                                   (selectedTug) =>
                                       selectedTug['name'] == tug['name'],
                                 );
-                              }
-                            });
+                              });
+                            }
                           },
                         );
                       }).toList(),
                     ),
+                    const SizedBox(height: 12),
+
+                    // Display selected assist tugs
+                    if (selectedAssistTugs.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.grey.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Assist Tug yang Dipilih:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ...selectedAssistTugs.map(
+                              (tug) => Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.grey.withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${tug['name']} - ${tug['power']} HP / ${tug['bollard_pull']} TON',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          selectedAssistTugs.remove(tug);
+                                        });
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ],
                 ),
               ),
@@ -2449,7 +2572,11 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  void _showPdfGenerationDialog(BuildContext context, int id) {
+  void _showPdfGenerationDialog(
+    BuildContext context,
+    int id,
+    Map<String, dynamic> data,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -2465,7 +2592,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 ElevatedButton.icon(
                   onPressed: () async {
                     Navigator.pop(context);
-                    await _generatePdf(id, 'pandu');
+                    await _generatePdf(id, 'pandu', data);
                   },
                   icon: const Icon(Icons.picture_as_pdf),
                   label: const Text('Form Pandu\n(2A1)'),
@@ -2481,7 +2608,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 ElevatedButton.icon(
                   onPressed: () async {
                     Navigator.pop(context);
-                    await _generatePdf(id, 'tunda');
+                    await _generatePdf(id, 'tunda', data);
                   },
                   icon: const Icon(Icons.picture_as_pdf),
                   label: const Text('Form Tunda\n(2A2)'),
@@ -2508,34 +2635,136 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  Future<void> _generatePdf(int id, String type) async {
+  Future<void> _generatePdf(
+    int id,
+    String type,
+    Map<String, dynamic> data,
+  ) async {
     try {
+      // Request storage permission (for Android 11+ use manageExternalStorage)
+      Permission permission = Platform.isAndroid && await _isAndroid11OrHigher()
+          ? Permission.manageExternalStorage
+          : Permission.storage;
+
+      var status = await permission.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Izin penyimpanan diperlukan untuk mengunduh PDF',
+              ),
+              backgroundColor: Colors.orange,
+              action: SnackBarAction(
+                label: 'Pengaturan',
+                textColor: Colors.white,
+                onPressed: () async {
+                  await openAppSettings();
+                },
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
       final url = type == 'pandu'
           ? '$baseUrl/generate_pilot_certificate.php?id=$id'
           : '$baseUrl/generate_mooring_certificate.php?id=$id';
 
-      // Open PDF in new tab/window
-      // Note: This assumes the API returns PDF content directly
-      // You may need to adjust based on your actual API implementation
+      // Download PDF file
+      final response = await http.get(Uri.parse(url));
 
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      } else {
+      if (response.statusCode == 200) {
+        // Get downloads directory
+        Directory? downloadsDir;
+        if (Platform.isAndroid) {
+          downloadsDir = Directory('/storage/emulated/0/Download');
+        } else {
+          downloadsDir = await getApplicationDocumentsDirectory();
+        }
+
+        // Create filename with format: PI - NAMA KAPAL/TK. NAMA TONGKANG (TANGGAL)
+        final vesselName = data['vessel_name'] ?? 'Unknown';
+        final dateStr = data['date'] ?? DateTime.now().toString().split('T')[0];
+
+        // Format vessel name
+        String formattedVesselName;
+        if (vesselName.contains('/')) {
+          // Tug boat & barge format: TUG_NAME/TK. BARGE_NAME
+          final parts = vesselName.split('/');
+          if (parts.length >= 2) {
+            formattedVesselName = '${parts[0].trim()}/TK. ${parts[1].trim()}';
+          } else {
+            formattedVesselName = vesselName;
+          }
+        } else {
+          // Motor vessel format: just the vessel name
+          formattedVesselName = vesselName;
+        }
+
+        // Format date as DD-MM-YYYY
+        String formattedDate;
+        try {
+          final date = DateTime.parse(dateStr);
+          formattedDate =
+              '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+        } catch (e) {
+          formattedDate = dateStr;
+        }
+
+        final fileName = 'PI - $formattedVesselName ($formattedDate).pdf';
+
+        final filePath = '${downloadsDir.path}/$fileName';
+        final file = File(filePath);
+
+        // Write file
+        await file.writeAsBytes(response.bodyBytes);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Tidak dapat membuka PDF'),
-              backgroundColor: Colors.red,
+            SnackBar(
+              content: Text('PDF berhasil diunduh: $fileName'),
+              backgroundColor: Colors.green,
+              action: SnackBarAction(
+                label: 'Buka',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await launchUrl(
+                      Uri.parse(filePath),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  } catch (e) {
+                    // Fallback to opening with default app
+                    await launchUrl(
+                      Uri.file(filePath),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+              ),
             ),
           );
         }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal generate PDF: $e'),
+            content: Text(
+              'Gagal generate PDF: $e\n\n'
+              'Pastikan:\n'
+              '1. Server dapat diakses dari perangkat mobile\n'
+              '2. IP address server benar (cek baseUrl)\n'
+              '3. Perangkat mobile terhubung ke jaringan yang sama\n'
+              '4. Firewall tidak memblokir akses\n'
+              '5. Izin penyimpanan telah diberikan',
+            ),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 10),
           ),
         );
       }

@@ -293,88 +293,44 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     // Pilihan Jenis Kapal
                     _buildSectionTitle('Jenis Kapal'),
                     const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.orange.withOpacity(0.3),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('KAPAL MOTOR'),
+                            value: 'Motor',
+                            groupValue: vesselType,
+                            onChanged: (value) {
+                              setState(() {
+                                vesselType = value!;
+                                // Reset fields saat ganti jenis
+                                tugNameController.clear();
+                                bargeNameController.clear();
+                                gtBargeController.clear();
+                                loaBargeController.clear();
+                              });
+                            },
+                            activeColor: const Color.fromRGBO(0, 40, 120, 1),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.category,
-                                size: 20,
-                                color: Colors.orange[700],
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Pilih Jenis Kapal',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange[700],
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('TUG BOAT & TONGKANG'),
+                            value: 'Tug',
+                            groupValue: vesselType,
+                            onChanged: (value) {
+                              setState(() {
+                                vesselType = value!;
+                              });
+                            },
+                            activeColor: const Color.fromRGBO(0, 40, 120, 1),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: RadioListTile<String>(
-                                  title: const Text('KAPAL MOTOR'),
-                                  value: 'Motor',
-                                  groupValue: vesselType,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      vesselType = value!;
-                                      // Reset fields saat ganti jenis
-                                      tugNameController.clear();
-                                      bargeNameController.clear();
-                                      gtBargeController.clear();
-                                      loaBargeController.clear();
-                                    });
-                                  },
-                                  activeColor: const Color.fromRGBO(
-                                    0,
-                                    40,
-                                    120,
-                                    1,
-                                  ),
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                              Expanded(
-                                child: RadioListTile<String>(
-                                  title: const Text('TUG BOAT & TONGKANG'),
-                                  value: 'Tug',
-                                  groupValue: vesselType,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      vesselType = value!;
-                                    });
-                                  },
-                                  activeColor: const Color.fromRGBO(
-                                    0,
-                                    40,
-                                    120,
-                                    1,
-                                  ),
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 24),
 
@@ -1100,65 +1056,53 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Dropdown Pilih Assist Tug
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.amber.shade400,
-                          width: 2,
-                        ),
-                      ),
-                      child: DropdownButtonFormField<Map<String, String>>(
-                        decoration: InputDecoration(
-                          labelText: 'Pilih Assist Tug',
-                          border: InputBorder.none,
-                          filled: false,
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Image.asset(
-                              'assets/icons/tugboat.png',
-                              width: 20,
-                              height: 20,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                        items: assistTugOptions.isNotEmpty
-                            ? assistTugOptions.map((tug) {
-                                return DropdownMenuItem<Map<String, String>>(
-                                  value: tug,
-                                  child: Text(
-                                    '${tug['name']} - ${tug['power']} HP / ${tug['bollard_pull']} TON',
+                    // Assist Tug Selection
+                    const Text(
+                      'Assist Tug',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: assistTugOptions.map((tug) {
+                        final isSelected = selectedAssistTugs.any(
+                          (selected) => selected['name'] == tug['name'],
+                        );
+                        return FilterChip(
+                          label: Text(tug['name']!),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected) {
+                              // Check if tug already selected
+                              bool alreadySelected = selectedAssistTugs.any(
+                                (selectedTug) =>
+                                    selectedTug['name'] == tug['name'],
+                              );
+
+                              if (alreadySelected) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Tug Boat ini sudah dipilih'),
+                                    backgroundColor: Colors.orange,
                                   ),
                                 );
-                              }).toList()
-                            : [],
-                        onChanged: (Map<String, String>? selectedTug) {
-                          if (selectedTug != null) {
-                            // Check if tug already selected
-                            bool alreadySelected = selectedAssistTugs.any(
-                              (tug) => tug['name'] == selectedTug['name'],
-                            );
+                                return;
+                              }
 
-                            if (alreadySelected) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Tug Boat ini sudah dipilih'),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                              return;
+                              setState(() {
+                                selectedAssistTugs.add(Map.from(tug));
+                              });
+                            } else {
+                              setState(() {
+                                selectedAssistTugs.removeWhere(
+                                  (selectedTug) =>
+                                      selectedTug['name'] == tug['name'],
+                                );
+                              });
                             }
-
-                            setState(() {
-                              selectedAssistTugs.add(selectedTug);
-                            });
-                          }
-                        },
-                      ),
+                          },
+                        );
+                      }).toList(),
                     ),
                     const SizedBox(height: 12),
 
