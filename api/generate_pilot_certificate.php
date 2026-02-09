@@ -1,6 +1,24 @@
 <?php
 // generate_pilot_certificate.php
 // Form 2A-1: BUKTI PEMAKAIAN JASA PANDU (PILOT CERTIFICATE)
+// Di awal file PHP
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Jangan tampilkan error ke output
+ini_set('log_errors', 1);
+ini_set('error_log', '/path/to/error.log');
+
+try {
+    // Kode generate PDF Anda
+    
+} catch (Exception $e) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
+    ]);
+    exit;
+}
 
 require_once __DIR__ . '/../backend/vendor/autoload.php';
 require_once __DIR__ . '/../backend/config/config.php';
@@ -19,7 +37,7 @@ try {
     if (!$pilotageId) throw new Exception("ID pilotage tidak ditemukan");
 
     // Ambil data dari database
-    $sql = "SELECT * FROM pilotage_logs WHERE id = ?";
+    $sql = "SELECT * FROM activity_logs WHERE id = ?";
     $stmt = $conn->prepare($sql);
     if (!$stmt) throw new Exception("Prepare query gagal: " . $conn->error);
     $stmt->bind_param("i", $pilotageId);
@@ -46,13 +64,19 @@ try {
 
     // Helper functions
     function putText($pdf, $x, $y, $text, $font='helvetica', $style='', $size=9, $align='L') {
+        $text = (string) $text;
+        $text = iconv('UTF-8', 'UTF-8//IGNORE', $text);
+        $text = trim(substr($text, 0, 50));
         $pdf->SetFont($font, $style, $size);
         $pdf->SetXY($x, $y);
         $pdf->Cell(0, 4, $text, 0, 0, $align);
     }
 
     function safeValue($val) {
-        return ($val === null || $val === '') ? '' : mb_strtoupper(trim($val), 'UTF-8');
+        if ($val === null || $val === '') return '';
+        $val = trim($val);
+        $val = iconv('UTF-8', 'UTF-8//IGNORE', $val);
+        return mb_strtoupper($val, 'UTF-8');
     }
 
     // No. BTM (di kanan atas)
@@ -75,21 +99,43 @@ try {
     putText($pdf, 141, 98, ($data['aft_draft'] ?? '') . ($data['aft_draft'] ? ' m' : ''), 'helvetica', '', 12);
 
     // Tanggal & Jam Berlabuh
-    if (!empty($data['anchor_date'])) {
-        $anchorDate = date('d-m-Y', strtotime($data['anchor_date']));
-        $dateParts = str_split(str_replace('-', '', $anchorDate));
-        $xStart = 88;
-        foreach ($dateParts as $i => $digit) {
-            putText($pdf, $xStart + ($i * 4.5), 95, $digit, 'helvetica', '', 9, 'C');
+    if (!empty($data['date']) && $data['date'] !== '0000-00-00' && $data['date'] !== null) {
+        $timestamp = strtotime($data['date']);
+        if ($timestamp !== false && $timestamp > 0) {
+            $anchorDate = date('dmY', $timestamp);
+            // Ensure we have exactly 8 digits (DDMMYYYY format) and it's not empty
+            if (!empty($anchorDate) && strlen($anchorDate) == 8 && is_numeric($anchorDate)) {
+                $dateParts = str_split($anchorDate);
+                if (is_array($dateParts) && count($dateParts) == 8) {
+                    $xStart = 88;
+                    for ($i = 0; $i < 8; $i++) {
+                        $digit = isset($dateParts[$i]) ? $dateParts[$i] : '0';
+                        if (is_numeric($digit)) {
+                            putText($pdf, $xStart + ($i * 4.5), 95, $digit, 'helvetica', '', 9, 'C');
+                        }
+                    }
+                }
+            }
         }
     }
 
-    if (!empty($data['anchor_time'])) {
-        $anchorTime = date('H:i', strtotime($data['anchor_time']));
-        $timeParts = str_split(str_replace(':', '', $anchorTime));
-        $xStart = 160;
-        foreach ($timeParts as $i => $digit) {
-            putText($pdf, $xStart + ($i * 4.5), 95, $digit, 'helvetica', '', 9, 'C');
+    if (!empty($data['pilot_on_board']) && $data['pilot_on_board'] !== '0000-00-00 00:00:00' && $data['pilot_on_board'] !== null) {
+        $timestamp = strtotime($data['pilot_on_board']);
+        if ($timestamp !== false && $timestamp > 0) {
+            $anchorTime = date('Hi', $timestamp);
+            // Ensure we have exactly 4 digits (HHMM format) and it's not empty
+            if (!empty($anchorTime) && strlen($anchorTime) == 4 && is_numeric($anchorTime)) {
+                $timeParts = str_split($anchorTime);
+                if (is_array($timeParts) && count($timeParts) == 4) {
+                    $xStart = 160;
+                    for ($i = 0; $i < 4; $i++) {
+                        $digit = isset($timeParts[$i]) ? $timeParts[$i] : '0';
+                        if (is_numeric($digit)) {
+                            putText($pdf, $xStart + ($i * 4.5), 95, $digit, 'helvetica', '', 9, 'C');
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -99,17 +145,23 @@ try {
 
     // Pilot Details
     putText($pdf, 30, 125, safeValue($data['pilot_name']), 'helvetica', '', 9);
-    
+
     // Ship Start
-    if (!empty($data['ship_start'])) {
-        $shipStartTime = date('H:i', strtotime($data['ship_start']));
-        putText($pdf, 160, 125, $shipStartTime, 'helvetica', '', 8);
+    if (!empty($data['vessel_start']) && $data['vessel_start'] !== '0000-00-00 00:00:00') {
+        $timestamp = strtotime($data['vessel_start']);
+        if ($timestamp !== false && $timestamp > 0) {
+            $shipStartTime = date('H:i', $timestamp);
+            putText($pdf, 160, 125, $shipStartTime, 'helvetica', '', 8);
+        }
     }
 
     // Pandu Turun (Pilot Get Off)
-    if (!empty($data['pilot_get_off'])) {
-        $offDate = date('d-m-Y', strtotime($data['pilot_get_off']));
-        putText($pdf, 154, 132, $offDate, 'helvetica', '', 14);
+    if (!empty($data['pilot_get_off']) && $data['pilot_get_off'] !== '0000-00-00 00:00:00') {
+        $timestamp = strtotime($data['pilot_get_off']);
+        if ($timestamp !== false && $timestamp > 0) {
+            $offDate = date('d-m-Y', $timestamp);
+            putText($pdf, 154, 132, $offDate, 'helvetica', '', 14);
+        }
     }
 
     // Mooring/Unmooring Unit
@@ -121,17 +173,27 @@ try {
     }
 
     // Pada Tanggal (date)
-    if (!empty($data['service_date'])) {
-        $serviceDate = date('d-m-Y', strtotime($data['service_date']));
-        $dateParts = str_split(str_replace('-', '', $serviceDate));
-        $xStart = 165;
-        foreach ($dateParts as $i => $digit) {
-            putText($pdf, $xStart + ($i * 4.5), 148, $digit, 'helvetica', '', 8, 'C');
+    if (!empty($data['date']) && $data['date'] !== '0000-00-00') {
+        $timestamp = strtotime($data['date']);
+        if ($timestamp !== false && $timestamp > 0) {
+            $serviceDate = date('dmY', $timestamp);
+            // Ensure we have exactly 8 digits (DDMMYYYY format)
+            if (strlen($serviceDate) >= 6) { // At least DDMMYY
+                $serviceDate = str_pad($serviceDate, 8, '0', STR_PAD_LEFT);
+                if (strlen($serviceDate) == 8) {
+                    $dateParts = str_split($serviceDate);
+                    $xStart = 165;
+                    foreach ($dateParts as $i => $digit) {
+                        putText($pdf, $xStart + ($i * 4.5), 148, $digit, 'helvetica', '', 8, 'C');
+                    }
+                }
+            }
         }
     }
 
     $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $data['vessel_name'] ?? 'pilot_certificate');
     $filename = "Pilot_Certificate_{$safeName}_" . date('Ymd_His') . ".pdf";
+    ob_end_clean();
     $pdf->Output($filename, 'I');
 
     $stmt->close();

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:open_file/open_file.dart';
 import 'package:pilotage_and_assistance_app/pages/pemanduan/tambah_pemanduan_page.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
@@ -1060,14 +1063,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
   }
 
   String _formatTimeOnly(String? dateTime) {
-    if (dateTime == null || dateTime.isEmpty) return '- (LT)';
+    if (dateTime == null || dateTime.isEmpty) return '-';
     try {
       final dt = DateTime.parse(dateTime);
       final hh = dt.hour.toString().padLeft(2, '0');
       final mm = dt.minute.toString().padLeft(2, '0');
-      return '$hh:$mm (LT)';
+      return '$hh:$mm'; // HAPUS (LT) dari sini
     } catch (e) {
-      return '$dateTime (LT)';
+      // Jika parsing gagal, coba extract HH:MM dari string
+      final timePattern = RegExp(r'(\d{2}):(\d{2})');
+      final match = timePattern.firstMatch(dateTime);
+      if (match != null) {
+        return '${match.group(1)}:${match.group(2)}';
+      }
+      return '-';
     }
   }
 
@@ -2641,13 +2650,31 @@ class _PemanduanPageState extends State<PemanduanPage> {
     Map<String, dynamic> data,
   ) async {
     try {
-      // Request storage permission (for Android 11+ use manageExternalStorage)
-      Permission permission = Platform.isAndroid && await _isAndroid11OrHigher()
-          ? Permission.manageExternalStorage
-          : Permission.storage;
+      // Show loading dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+        );
+      }
+
+      // Request storage permission
+      Permission permission = Permission.storage;
+      if (Platform.isAndroid) {
+        final androidInfo = await DeviceInfoPlugin().androidInfo;
+        if (androidInfo.version.sdkInt >= 30) {
+          permission = Permission.manageExternalStorage;
+        }
+      }
 
       var status = await permission.request();
       if (!status.isGranted) {
+        // Close loading dialog
+        if (mounted) Navigator.pop(context);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -2668,39 +2695,80 @@ class _PemanduanPageState extends State<PemanduanPage> {
         return;
       }
 
+      // Prepare URL
       final url = type == 'pandu'
           ? '$baseUrl/generate_pilot_certificate.php?id=$id'
           : '$baseUrl/generate_mooring_certificate.php?id=$id';
 
-      // Download PDF file
-      final response = await http.get(Uri.parse(url));
+      print('Requesting PDF from: $url'); // Debug log
+
+      // Download PDF file with timeout
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Request timeout - server tidak merespon');
+            },
+          );
+
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      print('Response status: ${response.statusCode}'); // Debug log
+      print('Response length: ${response.bodyBytes.length}'); // Debug log
 
       if (response.statusCode == 200) {
+        // Check if response is actually a PDF
+        if (response.bodyBytes.isEmpty) {
+          throw Exception('Server mengembalikan file kosong');
+        }
+
+        // Check if response contains error message
+        final contentType = response.headers['content-type'] ?? '';
+        if (contentType.contains('text/html') ||
+            contentType.contains('application/json')) {
+          // Server returned an error page instead of PDF
+          final errorMessage = String.fromCharCodes(response.bodyBytes);
+          print('Server error: $errorMessage'); // Debug log
+          throw Exception(
+            'Server error: Format response tidak valid (bukan PDF)',
+          );
+        }
+
         // Get downloads directory
         Directory? downloadsDir;
         if (Platform.isAndroid) {
           downloadsDir = Directory('/storage/emulated/0/Download');
+          // Check if Download folder exists, if not create it
+          if (!await downloadsDir.exists()) {
+            await downloadsDir.create(recursive: true);
+          }
         } else {
           downloadsDir = await getApplicationDocumentsDirectory();
         }
 
-        // Create filename with format: PI - NAMA KAPAL/TK. NAMA TONGKANG (TANGGAL)
-        final vesselName = data['vessel_name'] ?? 'Unknown';
-        final dateStr = data['date'] ?? DateTime.now().toString().split('T')[0];
+        // Create filename
+        final vesselName = (data['vessel_name'] ?? 'Unknown').toString();
+        final dateStr =
+            (data['date'] ?? DateTime.now().toString().split('T')[0])
+                .toString();
 
         // Format vessel name
         String formattedVesselName;
-        if (vesselName.contains('/')) {
-          // Tug boat & barge format: TUG_NAME/TK. BARGE_NAME
-          final parts = vesselName.split('/');
-          if (parts.length >= 2) {
-            formattedVesselName = '${parts[0].trim()}/TK. ${parts[1].trim()}';
+        try {
+          if (vesselName.contains('/')) {
+            final parts = vesselName.split('/');
+            if (parts.length >= 2 && parts[1].isNotEmpty) {
+              formattedVesselName = '${parts[0].trim()}_TK_${parts[1].trim()}';
+            } else {
+              formattedVesselName = vesselName.replaceAll('/', '_');
+            }
           } else {
             formattedVesselName = vesselName;
           }
-        } else {
-          // Motor vessel format: just the vessel name
-          formattedVesselName = vesselName;
+        } catch (e) {
+          formattedVesselName = 'Unknown_Vessel';
         }
 
         // Format date as DD-MM-YYYY
@@ -2710,10 +2778,17 @@ class _PemanduanPageState extends State<PemanduanPage> {
           formattedDate =
               '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
         } catch (e) {
-          formattedDate = dateStr;
+          formattedDate = 'Unknown_Date';
         }
 
-        final fileName = 'PI - $formattedVesselName ($formattedDate).pdf';
+        // Clean filename
+        final safeVesselName = formattedVesselName
+            .replaceAll(RegExp(r'[^\w\s-]'), '_')
+            .replaceAll(RegExp(r'\s+'), '_');
+
+        final typePrefix = type == 'pandu' ? 'PANDU' : 'TUNDA';
+        final fileName =
+            'PI_${typePrefix}_${safeVesselName}_$formattedDate.pdf';
 
         final filePath = '${downloadsDir.path}/$fileName';
         final file = File(filePath);
@@ -2721,26 +2796,32 @@ class _PemanduanPageState extends State<PemanduanPage> {
         // Write file
         await file.writeAsBytes(response.bodyBytes);
 
+        print('PDF saved to: $filePath'); // Debug log
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('PDF berhasil diunduh: $fileName'),
+              content: Text('PDF berhasil diunduh:\n$fileName'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 5),
               action: SnackBarAction(
                 label: 'Buka',
                 textColor: Colors.white,
                 onPressed: () async {
                   try {
-                    await launchUrl(
-                      Uri.parse(filePath),
-                      mode: LaunchMode.externalApplication,
-                    );
+                    final result = await OpenFile.open(filePath);
+                    if (result.type != ResultType.done) {
+                      throw Exception(result.message);
+                    }
                   } catch (e) {
-                    // Fallback to opening with default app
-                    await launchUrl(
-                      Uri.file(filePath),
-                      mode: LaunchMode.externalApplication,
-                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Tidak dapat membuka PDF: $e'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
                   }
                 },
               ),
@@ -2748,23 +2829,31 @@ class _PemanduanPageState extends State<PemanduanPage> {
           );
         }
       } else {
-        throw Exception('Server error: ${response.statusCode}');
+        throw Exception(
+          'Server error: ${response.statusCode}\n${response.body}',
+        );
       }
     } catch (e) {
+      // Close loading dialog if still open
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      print('PDF Generation Error: $e'); // Debug log
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Gagal generate PDF: $e\n\n'
-              'Pastikan:\n'
-              '1. Server dapat diakses dari perangkat mobile\n'
-              '2. IP address server benar (cek baseUrl)\n'
-              '3. Perangkat mobile terhubung ke jaringan yang sama\n'
-              '4. Firewall tidak memblokir akses\n'
-              '5. Izin penyimpanan telah diberikan',
+              'Gagal generate PDF:\n$e\n\n'
+              'Troubleshooting:\n'
+              '1. Pastikan server berjalan dan dapat diakses\n'
+              '2. Cek IP address di baseUrl ($baseUrl)\n'
+              '3. Pastikan perangkat terhubung ke jaringan yang sama\n'
+              '4. Cek log server untuk detail error',
             ),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 10),
+            duration: const Duration(seconds: 8),
           ),
         );
       }
