@@ -21,13 +21,15 @@ class _RegisterPageState extends State<RegisterPage> {
   // Controllers untuk Kapal Tunda
   final TextEditingController _vesselNameController = TextEditingController();
   final TextEditingController _tugboatEmailController = TextEditingController();
-  final TextEditingController _tugboatPasswordController = TextEditingController();
-  final TextEditingController _tugboatConfirmController = TextEditingController();
+  final TextEditingController _tugboatPasswordController =
+      TextEditingController();
+  final TextEditingController _tugboatConfirmController =
+      TextEditingController();
 
   bool _isObscure = true;
   bool _isObscureConfirm = true;
   bool _isLoading = false;
-  
+
   String? _selectedRole; // null = belum pilih role
 
   @override
@@ -66,9 +68,9 @@ class _RegisterPageState extends State<RegisterPage> {
 
     if (name.isEmpty || email.isEmpty || password.isEmpty || confirm.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Semua field wajib diisi")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Semua field wajib diisi")));
       return;
     }
 
@@ -93,14 +95,16 @@ class _RegisterPageState extends State<RegisterPage> {
       print("📤 Sending data: $requestBody"); // Debug print
 
       final response = await http.post(
-        Uri.parse('http://192.168.0.9/pilotage_and_assistance_app/backend/auth/register.php'),
+        Uri.parse(
+          'http://192.168.1.18/pilotage_and_assistance_app/backend/auth/register.php',
+        ),
         // Uri.parse('http://192.168.1.15/pilotage_and_assistance_app/backend/auth/register.php'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(requestBody),
       );
 
       print("📥 Response: ${response.body}");
-      
+
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
 
@@ -132,9 +136,9 @@ class _RegisterPageState extends State<RegisterPage> {
     } catch (e) {
       print("Error: $e");
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal terhubung ke server: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Gagal terhubung ke server: $e")));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -337,7 +341,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   label: "Konfirmasi Password",
                   hint: "Konfirmasi password",
                   isObscure: _isObscureConfirm,
-                  onToggle: () => setState(() => _isObscureConfirm = !_isObscureConfirm),
+                  onToggle: () =>
+                      setState(() => _isObscureConfirm = !_isObscureConfirm),
                 ),
               ],
 
@@ -394,7 +399,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   label: "Konfirmasi Password",
                   hint: "Konfirmasi password",
                   isObscure: _isObscureConfirm,
-                  onToggle: () => setState(() => _isObscureConfirm = !_isObscureConfirm),
+                  onToggle: () =>
+                      setState(() => _isObscureConfirm = !_isObscureConfirm),
                 ),
               ],
 
@@ -471,10 +477,11 @@ class _RegisterPageState extends State<RegisterPage> {
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(icon),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 12,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           ),
         ),
       ],
@@ -500,10 +507,11 @@ class _RegisterPageState extends State<RegisterPage> {
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: const Icon(Icons.lock),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 12,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
             suffixIcon: IconButton(
               icon: Icon(isObscure ? Icons.visibility_off : Icons.visibility),
               onPressed: onToggle,

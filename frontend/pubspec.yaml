@@ -57,6 +57,8 @@ dependencies:
 
   device_info_plus: ^10.1.0
 
+  signature: ^5.4.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

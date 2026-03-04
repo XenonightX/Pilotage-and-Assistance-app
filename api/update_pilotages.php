@@ -60,6 +60,11 @@ try {
     $bollard_pull_power = $data["bollard_pull_power"] ?? '';
     $status = $data["status"] ?? 'Terjadwal';
 
+    // Otomatis set selesai jika pandu turun sudah diisi
+    if (!empty($pilot_get_off)) {
+        $status = 'Selesai';
+    }
+
     error_log("🔄 Updating ID: $id with from_where: $from_where, to_where: $to_where");
 
     $sql = "UPDATE activity_logs SET

@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:open_file/open_file.dart';
+import 'package:signature/signature.dart';
 import 'package:pilotage_and_assistance_app/pages/pemanduan/tambah_pemanduan_page.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
@@ -38,6 +39,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
   DateTimeRange? _selectedDateRange;
   String _dateFilterText = 'Semua Tanggal';
 
+  // Temporary storage for signature (used for PDF generation - NOT SAVED TO DATABASE)
+  String? _pendingSignature;
+  int? _pendingSignatureId;
+
   List<Map<String, dynamic>> _pemanduanList = [];
   bool _isLoading = true;
 
@@ -57,7 +62,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
   // User role
   String _userRole = '';
 
-  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.1.18/pilotage_and_assistance_app/api';
   // final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
   @override
@@ -1068,7 +1073,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
       final dt = DateTime.parse(dateTime);
       final hh = dt.hour.toString().padLeft(2, '0');
       final mm = dt.minute.toString().padLeft(2, '0');
-      return '$hh:$mm'; // HAPUS (LT) dari sini
+      return '$hh:$mm';
     } catch (e) {
       // Jika parsing gagal, coba extract HH:MM dari string
       final timePattern = RegExp(r'(\d{2}):(\d{2})');
@@ -1698,6 +1703,13 @@ class _PemanduanPageState extends State<PemanduanPage> {
           : '',
     );
 
+    // Signature Controller
+    final signatureController = SignatureController(
+      penStrokeWidth: 3,
+      penColor: Colors.black,
+      exportBackgroundColor: Colors.white,
+    );
+
     String selectedStatus = data['status'] ?? 'Terjadwal';
 
     String selectedDirection;
@@ -1772,6 +1784,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
           // Check if additional time fields should be shown
           bool showTimeFields =
               selectedStatus == 'Aktif' || selectedStatus == 'Selesai';
+
+          // HANYA tampilkan signature canvas untuk status Aktif
+          bool showSignatureCanvas = selectedStatus == 'Aktif';
 
           return AlertDialog(
             insetPadding: const EdgeInsets.symmetric(
@@ -2290,6 +2305,71 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     ),
                     const SizedBox(height: 16),
 
+                    // ==============================================
+                    // SIGNATURE CANVAS - HANYA UNTUK STATUS AKTIF
+                    // ==============================================
+                    if (showSignatureCanvas) ...[
+                      // Info Box
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tanda tangan ini akan langsung masuk ke PDF dan TIDAK disimpan di database.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blue[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      const Text(
+                        'Tanda Tangan',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 200,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Signature(controller: signatureController),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () {
+                              signatureController.clear();
+                            },
+                            icon: const Icon(Icons.clear, size: 18),
+                            label: const Text('Hapus Tanda Tangan'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     // Time Fields (shown only for Aktif or Selesai)
                     if (showTimeFields) ...[
                       const Text(
@@ -2552,23 +2632,52 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         DateTime.now().toIso8601String().split('T')[0];
                     if (pilotOnBoardController.text.isNotEmpty) {
                       updateData['pilot_on_board'] =
-                          '${eventDate}T${pilotOnBoardController.text.replaceAll(' (LT)', '')}:00';
+                          '${eventDate}T${pilotOnBoardController.text}:00';
                     }
                     if (pilotFinishedController.text.isNotEmpty) {
                       updateData['pilot_finished'] =
-                          '${eventDate}T${pilotFinishedController.text.replaceAll(' (LT)', '')}:00';
+                          '${eventDate}T${pilotFinishedController.text}:00';
                     }
                     if (vesselStartController.text.isNotEmpty) {
                       updateData['vessel_start'] =
-                          '${eventDate}T${vesselStartController.text.replaceAll(' (LT)', '')}:00';
+                          '${eventDate}T${vesselStartController.text}:00';
                     }
                     if (pilotGetOffController.text.isNotEmpty) {
                       updateData['pilot_get_off'] =
-                          '${eventDate}T${pilotGetOffController.text.replaceAll(' (LT)', '')}:00';
+                          '${eventDate}T${pilotGetOffController.text}:00';
                     }
                   }
 
-                  // Call update function
+                  // ==============================================
+                  // SIMPAN SIGNATURE KE STATE (TEMPORARY)
+                  // TIDAK DISIMPAN KE DATABASE!
+                  // ==============================================
+                  if (selectedStatus == 'Aktif' && signatureController.isNotEmpty) {
+                    final signatureBytes = await signatureController.toPngBytes();
+                    if (signatureBytes != null) {
+                      setState(() {
+                        // Simpan temporary untuk PDF generation
+                        _pendingSignature = base64Encode(signatureBytes);
+                        _pendingSignatureId = data['id'];
+                      });
+                      
+                      // Tampilkan notifikasi
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '✅ Tanda tangan tersimpan sementara.\n'
+                              'Silakan generate PDF sebelum keluar dari halaman ini.',
+                            ),
+                            backgroundColor: Colors.orange,
+                            duration: Duration(seconds: 5),
+                          ),
+                        );
+                      }
+                    }
+                  }
+
+                  // Call update function (TANPA signature - tidak masuk database)
                   await _updatePilotages(updateData);
                   Navigator.pop(context);
                 },
@@ -2695,28 +2804,46 @@ class _PemanduanPageState extends State<PemanduanPage> {
         return;
       }
 
+      // ==============================================
+      // CHECK APAKAH ADA PENDING SIGNATURE UNTUK ID INI
+      // ==============================================
+      String? signatureToSend;
+      if (_pendingSignatureId == id && _pendingSignature != null) {
+        signatureToSend = _pendingSignature;
+        print('📝 Signature found for ID $id - akan dikirim ke backend');
+      } else {
+        print('ℹ️ No signature found for ID $id');
+      }
+
       // Prepare URL
       final url = type == 'pandu'
-          ? '$baseUrl/generate_pilot_certificate.php?id=$id'
-          : '$baseUrl/generate_mooring_certificate.php?id=$id';
+          ? '$baseUrl/generate_pilot_certificate.php'
+          : '$baseUrl/generate_mooring_certificate.php';
 
-      print('Requesting PDF from: $url'); // Debug log
+      print('Requesting PDF from: $url');
 
-      // Download PDF file with timeout
-      final response = await http
-          .get(Uri.parse(url))
-          .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () {
-              throw Exception('Request timeout - server tidak merespon');
-            },
-          );
+      // ==============================================
+      // KIRIM SIGNATURE VIA POST (BUKAN GET!)
+      // ==============================================
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'id': id,
+          'signature': signatureToSend, // Kirim signature base64 (atau null)
+        }),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Request timeout - server tidak merespon');
+        },
+      );
 
       // Close loading dialog
       if (mounted) Navigator.pop(context);
 
-      print('Response status: ${response.statusCode}'); // Debug log
-      print('Response length: ${response.bodyBytes.length}'); // Debug log
+      print('Response status: ${response.statusCode}');
+      print('Response length: ${response.bodyBytes.length}');
 
       if (response.statusCode == 200) {
         // Check if response is actually a PDF
@@ -2730,7 +2857,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
             contentType.contains('application/json')) {
           // Server returned an error page instead of PDF
           final errorMessage = String.fromCharCodes(response.bodyBytes);
-          print('Server error: $errorMessage'); // Debug log
+          print('Server error: $errorMessage');
           throw Exception(
             'Server error: Format response tidak valid (bukan PDF)',
           );
@@ -2796,12 +2923,27 @@ class _PemanduanPageState extends State<PemanduanPage> {
         // Write file
         await file.writeAsBytes(response.bodyBytes);
 
-        print('PDF saved to: $filePath'); // Debug log
+        print('PDF saved to: $filePath');
+
+        // ==============================================
+        // HAPUS PENDING SIGNATURE SETELAH BERHASIL
+        // ==============================================
+        if (signatureToSend != null) {
+          setState(() {
+            _pendingSignature = null;
+            _pendingSignatureId = null;
+          });
+          
+          print('✅ Signature cleared from memory after successful PDF generation');
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('PDF berhasil diunduh:\n$fileName'),
+              content: Text(
+                '✅ PDF berhasil diunduh:\n$fileName' +
+                (signatureToSend != null ? '\n✍️ Dengan tanda tangan' : '')
+              ),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 5),
               action: SnackBarAction(
@@ -2839,7 +2981,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
         Navigator.pop(context);
       }
 
-      print('PDF Generation Error: $e'); // Debug log
+      print('PDF Generation Error: $e');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

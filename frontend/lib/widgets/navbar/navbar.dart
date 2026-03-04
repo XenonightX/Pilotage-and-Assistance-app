@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'package:pilotage_and_assistance_app/pages/profile/profile_page.dart';
 import '../../pages/settings/settings_page.dart';
 import '../../pages/pemanduan/pemanduan_page.dart';
@@ -15,12 +17,34 @@ class ResponsiveNavBarPage extends StatefulWidget {
 
 class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final String _baseUrl = 'http://192.168.1.18/pilotage_and_assistance_app/api';
   String _userName = 'User';
+  bool? _isDashboardLoading = true;
+
+  Map<String, int>? _stats = {
+    'total': 0,
+    'active': 0,
+    'completed': 0,
+    'scheduled': 0,
+  };
+
+  List<Map<String, dynamic>>? _recentActivities = [];
+
+  Map<String, int> get _safeStats => _stats ?? const {
+        'total': 0,
+        'active': 0,
+        'completed': 0,
+        'scheduled': 0,
+      };
+
+  List<Map<String, dynamic>> get _safeRecentActivities =>
+      _recentActivities ?? const [];
 
   @override
   void initState() {
     super.initState();
     _loadUserName();
+    _loadDashboard();
   }
 
   Future<void> _loadUserName() async {
@@ -28,6 +52,89 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
     setState(() {
       _userName = prefs.getString('userName') ?? 'User';
     });
+  }
+
+  Future<int> _fetchCountByStatus(String status) async {
+    final queryParams = <String, String>{'page': '1', 'limit': '1'};
+    if (status.isNotEmpty) {
+      queryParams['status'] = status;
+    }
+
+    final uri = Uri.parse(
+      '$_baseUrl/get_pilotages.php',
+    ).replace(queryParameters: queryParams);
+
+    final response = await http.get(uri);
+    if (response.statusCode != 200) {
+      throw Exception('Server error: ${response.statusCode}');
+    }
+
+    final result = jsonDecode(response.body);
+    if (result['status'] != 'success') {
+      throw Exception(result['message'] ?? 'Gagal mengambil statistik');
+    }
+
+    return result['total'] ?? 0;
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchRecentActivities() async {
+    final uri = Uri.parse('$_baseUrl/get_pilotages.php').replace(
+      queryParameters: {'page': '1', 'limit': '5'},
+    );
+
+    final response = await http.get(uri);
+    if (response.statusCode != 200) {
+      throw Exception('Server error: ${response.statusCode}');
+    }
+
+    final result = jsonDecode(response.body);
+    if (result['status'] != 'success') {
+      throw Exception(result['message'] ?? 'Gagal mengambil data kegiatan');
+    }
+
+    return List<Map<String, dynamic>>.from(result['data'] ?? []);
+  }
+
+  Future<void> _loadDashboard() async {
+    setState(() => _isDashboardLoading = true);
+
+    try {
+      final values = await Future.wait([
+        _fetchCountByStatus(''),
+        _fetchCountByStatus('Aktif'),
+        _fetchCountByStatus('Selesai'),
+        _fetchCountByStatus('Terjadwal'),
+        _fetchRecentActivities(),
+      ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _stats = {
+          'total': values[0] as int,
+          'active': values[1] as int,
+          'completed': values[2] as int,
+          'scheduled': values[3] as int,
+        };
+        _recentActivities = values[4] as List<Map<String, dynamic>>;
+        _isDashboardLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isDashboardLoading = false);
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Aktif':
+        return Colors.orange;
+      case 'Selesai':
+        return Colors.green;
+      case 'Terjadwal':
+      default:
+        return const Color.fromRGBO(0, 40, 120, 1);
+    }
   }
 
   @override
@@ -45,12 +152,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
             // ✅ Body di bawah navbar
             Positioned.fill(
               top: 100, // beri jarak agar tidak tertutup navbar
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                child: const Center(
-                  child: Text("Body Content", style: TextStyle(fontSize: 20)),
-                ),
-              ),
+              child: _buildDashboardBody(),
             ),
 
             // ✅ Navbar tetap di atas
@@ -129,6 +231,153 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
     );
   }
 
+  Widget _buildDashboardBody() {
+    if (_isDashboardLoading ?? true) {
+      return const Center(child: CircularProgressIndicator(color: Colors.white));
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadDashboard,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Dashboard Semua Kegiatan',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _buildStatCard('Total Kegiatan', _safeStats['total']!, Colors.white),
+                _buildStatCard('Aktif', _safeStats['active']!, Colors.orange),
+                _buildStatCard('Selesai', _safeStats['completed']!, Colors.green),
+                _buildStatCard('Terjadwal', _safeStats['scheduled']!, Colors.blue),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Kegiatan Terbaru',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_safeRecentActivities.isEmpty)
+                    const Text('Belum ada data kegiatan.')
+                  else
+                    ..._safeRecentActivities.map((item) {
+                      final vessel = (item['vessel_name'] ?? '-').toString();
+                      final pilot = (item['pilot_name'] ?? '-').toString();
+                      final status = (item['status'] ?? 'Terjadwal').toString();
+                      final date = (item['date'] ?? '-').toString();
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color.fromRGBO(245, 247, 252, 1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    vessel,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text('Pilot: $pilot'),
+                                  Text('Tanggal: $date'),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _statusColor(status),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Text(
+                                status,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, int value, Color accentColor) {
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accentColor.withOpacity(0.35), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color.fromRGBO(70, 70, 70, 1),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$value',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: accentColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ✅ Drawer (untuk mobile)
   Widget _drawer(BuildContext context) => Drawer(
     child: ListView(
@@ -158,13 +407,21 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                     builder: (context) => const PemanduanPage(),
                   ),
                 );
+              } else if (item == 'Dashboard') {
+                _loadDashboard();
               }
             },
-            leading: Image.asset(
-              'assets/icons/pilot1.png',
-              width: 28,
-              height: 27,
-            ),
+            leading: item == 'Dashboard'
+                ? const Icon(
+                    Icons.dashboard,
+                    color: Color.fromRGBO(0, 40, 120, 1),
+                    size: 28,
+                  )
+                : Image.asset(
+                    'assets/icons/pilot1.png',
+                    width: 28,
+                    height: 27,
+                  ),
 
             title: Text(
               item,
@@ -191,6 +448,8 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                 context,
                 MaterialPageRoute(builder: (context) => const PemanduanPage()),
               );
+            } else if (item == 'Dashboard') {
+              _loadDashboard();
             }
           },
           child: Padding(
@@ -222,7 +481,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
   }
 }
 
-final List<String> _menuItems = ['Pemanduan & Penundaan'];
+final List<String> _menuItems = ['Dashboard', 'Pemanduan & Penundaan'];
 
 enum Menu { itemOne, itemTwo, itemThree }
 
