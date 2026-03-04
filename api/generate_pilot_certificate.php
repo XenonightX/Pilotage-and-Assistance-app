@@ -26,6 +26,12 @@ try {
         $input = json_decode(file_get_contents('php://input'), true);
         $pilotageId = isset($input['id']) ? (int) $input['id'] : null;
         $signatureBase64 = isset($input['signature']) ? $input['signature'] : null;
+        if (is_string($signatureBase64)) {
+            $signatureBase64 = trim($signatureBase64);
+            if ($signatureBase64 === '') {
+                $signatureBase64 = null;
+            }
+        }
         
         // Log untuk debugging
         error_log("Received POST request with ID: $pilotageId");
@@ -79,6 +85,95 @@ try {
         return mb_strtoupper($val, 'UTF-8');
     }
 
+    /**
+     * Decode signature base64 and crop to non-white/non-transparent strokes.
+     * Returns PNG binary data ready for TCPDF Image('@...').
+     */
+    function prepareSignatureImageData($signatureBase64) {
+        if (!is_string($signatureBase64) || trim($signatureBase64) === '') {
+            return false;
+        }
+
+        $signatureData = preg_replace('/^data:image\/[a-zA-Z0-9\+\-\.]+;base64,/', '', trim($signatureBase64));
+        $signatureData = str_replace(' ', '+', $signatureData);
+        $decoded = base64_decode($signatureData, true);
+        if ($decoded === false) {
+            return false;
+        }
+
+        // Fallback if GD extension is not available
+        if (!function_exists('imagecreatefromstring') || !function_exists('imagecrop') || !function_exists('imagepng')) {
+            return $decoded;
+        }
+
+        $img = @imagecreatefromstring($decoded);
+        if (!$img) {
+            return $decoded;
+        }
+
+        $width = imagesx($img);
+        $height = imagesy($img);
+        $minX = $width;
+        $minY = $height;
+        $maxX = -1;
+        $maxY = -1;
+
+        for ($y = 0; $y < $height; $y++) {
+            for ($x = 0; $x < $width; $x++) {
+                $rgba = imagecolorat($img, $x, $y);
+                $a = ($rgba & 0x7F000000) >> 24; // 0 opaque, 127 transparent
+                $r = ($rgba >> 16) & 0xFF;
+                $g = ($rgba >> 8) & 0xFF;
+                $b = $rgba & 0xFF;
+
+                $isTransparent = $a >= 127;
+                $isWhite = ($r >= 245 && $g >= 245 && $b >= 245);
+                if (!$isTransparent && !$isWhite) {
+                    if ($x < $minX) $minX = $x;
+                    if ($y < $minY) $minY = $y;
+                    if ($x > $maxX) $maxX = $x;
+                    if ($y > $maxY) $maxY = $y;
+                }
+            }
+        }
+
+        // No visible strokes found
+        if ($maxX < 0 || $maxY < 0) {
+            imagedestroy($img);
+            return $decoded;
+        }
+
+        $padding = 2;
+        $cropX = max(0, $minX - $padding);
+        $cropY = max(0, $minY - $padding);
+        $cropW = min($width - $cropX, ($maxX - $minX + 1) + ($padding * 2));
+        $cropH = min($height - $cropY, ($maxY - $minY + 1) + ($padding * 2));
+
+        $cropped = imagecrop($img, [
+            'x' => $cropX,
+            'y' => $cropY,
+            'width' => $cropW,
+            'height' => $cropH,
+        ]);
+
+        if (!$cropped) {
+            imagedestroy($img);
+            return $decoded;
+        }
+
+        imagealphablending($cropped, false);
+        imagesavealpha($cropped, true);
+
+        ob_start();
+        imagepng($cropped);
+        $croppedData = ob_get_clean();
+
+        imagedestroy($cropped);
+        imagedestroy($img);
+
+        return $croppedData !== false ? $croppedData : $decoded;
+    }
+
     // ===============================================
     // TAMBAHKAN TANDA TANGAN KE PDF (LANGSUNG DARI REQUEST)
     // ===============================================
@@ -86,17 +181,10 @@ try {
         error_log("Processing signature...");
         
         try {
-            // Remove data:image/png;base64, prefix if present
-            $signatureData = $signatureBase64;
-            if (strpos($signatureData, 'data:image') !== false) {
-                $signatureData = preg_replace('/^data:image\/\w+;base64,/', '', $signatureData);
-            }
-            
-            // Decode base64
-            $signatureImage = base64_decode($signatureData);
+            $signatureImage = prepareSignatureImageData($signatureBase64);
             
             if ($signatureImage === false) {
-                error_log("Failed to decode signature base64");
+                error_log("Failed to decode signature base64 (pilot)");
             } else {
                 error_log("Signature decoded successfully, size: " . strlen($signatureImage));
                 
@@ -104,11 +192,11 @@ try {
                 // Koordinat disesuaikan dengan posisi di form Anda
                 $pdf->Image(
                     '@' . $signatureImage,  // @ prefix untuk image dari string
-                    140,                     // X position (adjust sesuai form)
-                    250,                     // Y position (adjust sesuai form)
+                    140,                     // X position
+                    250,                     // Y position
                     50,                      // Width
                     20,                      // Height
-                    'PNG',                   // Format
+                    '',                      // Format autodetect
                     '',                      // Link
                     '',                      // Align
                     true,                    // Resize

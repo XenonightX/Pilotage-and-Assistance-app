@@ -39,9 +39,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
   DateTimeRange? _selectedDateRange;
   String _dateFilterText = 'Semua Tanggal';
 
-  // Temporary storage for signature (used for PDF generation - NOT SAVED TO DATABASE)
-  String? _pendingSignature;
-  int? _pendingSignatureId;
+  // Temporary storage for signature per ID (used for PDF generation - NOT SAVED TO DATABASE)
+  final Map<String, String> _pendingSignatures = {};
 
   List<Map<String, dynamic>> _pemanduanList = [];
   bool _isLoading = true;
@@ -62,7 +61,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
   // User role
   String _userRole = '';
 
-  final String baseUrl = 'http://192.168.1.18/pilotage_and_assistance_app/api';
+  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
   // final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
 
   @override
@@ -1707,7 +1706,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
     final signatureController = SignatureController(
       penStrokeWidth: 3,
       penColor: Colors.black,
-      exportBackgroundColor: Colors.white,
+      // Export transparan agar di PDF hanya goresan tanda tangan yang terlihat
+      exportBackgroundColor: Colors.transparent,
     );
 
     String selectedStatus = data['status'] ?? 'Terjadwal';
@@ -2655,10 +2655,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   if (selectedStatus == 'Aktif' && signatureController.isNotEmpty) {
                     final signatureBytes = await signatureController.toPngBytes();
                     if (signatureBytes != null) {
+                      final signatureId = '${data['id']}';
+                      final signatureBase64 = base64Encode(signatureBytes);
+
                       setState(() {
-                        // Simpan temporary untuk PDF generation
-                        _pendingSignature = base64Encode(signatureBytes);
-                        _pendingSignatureId = data['id'];
+                        // Simpan temporary per ID untuk PDF generation
+                        _pendingSignatures[signatureId] = signatureBase64;
                       });
                       
                       // Tampilkan notifikasi
@@ -2808,8 +2810,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
       // CHECK APAKAH ADA PENDING SIGNATURE UNTUK ID INI
       // ==============================================
       String? signatureToSend;
-      if (_pendingSignatureId == id && _pendingSignature != null) {
-        signatureToSend = _pendingSignature;
+      final signatureKey = '$id';
+      signatureToSend = _pendingSignatures[signatureKey];
+      if (signatureToSend == null && _pendingSignatures.length == 1) {
+        signatureToSend = _pendingSignatures.values.first;
+      }
+      if (signatureToSend != null) {
         print('📝 Signature found for ID $id - akan dikirim ke backend');
       } else {
         print('ℹ️ No signature found for ID $id');
@@ -2830,7 +2836,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'id': id,
-          'signature': signatureToSend, // Kirim signature base64 (atau null)
+          'signature': signatureToSend != null
+              ? 'data:image/png;base64,$signatureToSend'
+              : null,
         }),
       ).timeout(
         const Duration(seconds: 30),
@@ -2930,8 +2938,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
         // ==============================================
         if (signatureToSend != null) {
           setState(() {
-            _pendingSignature = null;
-            _pendingSignatureId = null;
+            _pendingSignatures.remove(signatureKey);
           });
           
           print('✅ Signature cleared from memory after successful PDF generation');

@@ -52,7 +52,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       final response = await http.post(
         Uri.parse(
-            'http://192.168.1.18/pilotage_and_assistance_app/backend/auth/update_profile.php'),
+            'http://192.168.0.9/pilotage_and_assistance_app/backend/auth/update_profile.php'),
             // 'http://192.168.1.15/pilotage_and_assistance_app/backend/auth/update_profile.php'),
 
         headers: {"Content-Type": "application/json"},

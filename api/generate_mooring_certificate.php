@@ -28,6 +28,15 @@ try {
         $input = json_decode(file_get_contents('php://input'), true);
         $pilotageId = isset($input['id']) ? (int) $input['id'] : null;
         $signatureBase64 = isset($input['signature']) ? $input['signature'] : null;
+        if (is_string($signatureBase64)) {
+            $signatureBase64 = trim($signatureBase64);
+            if ($signatureBase64 === '') {
+                $signatureBase64 = null;
+            }
+        }
+
+        error_log("Received POST request with ID: $pilotageId");
+        error_log("Signature received (mooring): " . ($signatureBase64 ? "YES" : "NO"));
     } else {
         $pilotageId = isset($_GET['id']) ? (int) $_GET['id'] : null;
     }
@@ -77,19 +86,107 @@ try {
         return mb_strtoupper($val, 'UTF-8');
     }
 
+    /**
+     * Decode signature base64 and crop to non-white/non-transparent strokes.
+     * Returns PNG binary data ready for TCPDF Image('@...').
+     */
+    function prepareSignatureImageDataMooring($signatureBase64) {
+        if (!is_string($signatureBase64) || trim($signatureBase64) === '') {
+            return false;
+        }
+
+        $signatureData = preg_replace('/^data:image\/[a-zA-Z0-9\+\-\.]+;base64,/', '', trim($signatureBase64));
+        $signatureData = str_replace(' ', '+', $signatureData);
+        $decoded = base64_decode($signatureData, true);
+        if ($decoded === false) {
+            return false;
+        }
+
+        // Fallback if GD extension is not available
+        if (!function_exists('imagecreatefromstring') || !function_exists('imagecrop') || !function_exists('imagepng')) {
+            return $decoded;
+        }
+
+        $img = @imagecreatefromstring($decoded);
+        if (!$img) {
+            return $decoded;
+        }
+
+        $width = imagesx($img);
+        $height = imagesy($img);
+        $minX = $width;
+        $minY = $height;
+        $maxX = -1;
+        $maxY = -1;
+
+        for ($y = 0; $y < $height; $y++) {
+            for ($x = 0; $x < $width; $x++) {
+                $rgba = imagecolorat($img, $x, $y);
+                $a = ($rgba & 0x7F000000) >> 24; // 0 opaque, 127 transparent
+                $r = ($rgba >> 16) & 0xFF;
+                $g = ($rgba >> 8) & 0xFF;
+                $b = $rgba & 0xFF;
+
+                $isTransparent = $a >= 127;
+                $isWhite = ($r >= 245 && $g >= 245 && $b >= 245);
+                if (!$isTransparent && !$isWhite) {
+                    if ($x < $minX) $minX = $x;
+                    if ($y < $minY) $minY = $y;
+                    if ($x > $maxX) $maxX = $x;
+                    if ($y > $maxY) $maxY = $y;
+                }
+            }
+        }
+
+        // No visible strokes found
+        if ($maxX < 0 || $maxY < 0) {
+            imagedestroy($img);
+            return $decoded;
+        }
+
+        $padding = 2;
+        $cropX = max(0, $minX - $padding);
+        $cropY = max(0, $minY - $padding);
+        $cropW = min($width - $cropX, ($maxX - $minX + 1) + ($padding * 2));
+        $cropH = min($height - $cropY, ($maxY - $minY + 1) + ($padding * 2));
+
+        $cropped = imagecrop($img, [
+            'x' => $cropX,
+            'y' => $cropY,
+            'width' => $cropW,
+            'height' => $cropH,
+        ]);
+
+        if (!$cropped) {
+            imagedestroy($img);
+            return $decoded;
+        }
+
+        imagealphablending($cropped, false);
+        imagesavealpha($cropped, true);
+
+        ob_start();
+        imagepng($cropped);
+        $croppedData = ob_get_clean();
+
+        imagedestroy($cropped);
+        imagedestroy($img);
+
+        return $croppedData !== false ? $croppedData : $decoded;
+    }
+
     // Add signature to PDF if provided
     if (!empty($signatureBase64)) {
-        // Remove data:image/png;base64, prefix if present
-        $signatureData = $signatureBase64;
-        if (strpos($signatureData, 'data:image') !== false) {
-            $signatureData = preg_replace('/^data:image\/\w+;base64,/', '', $signatureData);
-        }
-        
-        $signatureImage = base64_decode($signatureData);
+        $signatureImage = prepareSignatureImageDataMooring($signatureBase64);
         if ($signatureImage !== false) {
+            error_log("Signature decoded successfully (mooring), size: " . strlen($signatureImage));
             // Add signature image to PDF (adjust coordinates as needed)
-            $pdf->Image('@' . $signatureImage, 140, 250, 50, 20, 'PNG', '', '', true, 150, '', false, false, 0);
+            $pdf->Image('@' . $signatureImage, 140, 250, 50, 20, '', '', '', true, 150, '', false, false, 0);
+        } else {
+            error_log("Failed to decode signature base64 (mooring)");
         }
+    } else {
+        error_log("No signature provided (mooring)");
     }
 
     // No. BTM (di kanan atas)
