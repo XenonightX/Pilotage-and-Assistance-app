@@ -1,17 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:open_file/open_file.dart';
 import 'package:signature/signature.dart';
 import 'package:pilotage_and_assistance_app/pages/pemanduan/tambah_pemanduan_page.dart';
+import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -87,14 +86,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   // Check if user is admin
   bool get _isAdmin => _userRole.toLowerCase() == 'admin';
-
-  // Check if Android version is 11 or higher
-  Future<bool> _isAndroid11OrHigher() async {
-    if (!Platform.isAndroid) return false;
-    final version = await Platform.operatingSystemVersion;
-    final sdkInt = int.tryParse(version.split(' ')[1]) ?? 0;
-    return sdkInt >= 30; // Android 11 is API level 30
-  }
 
   Future<void> _loadData() async {
     await Future.wait([_fetchPilotages(), _fetchStats()]);
@@ -550,9 +541,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
     final bool isLargeScreen = width > 800;
 
     return Scaffold(
-      backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
+          const Positioned.fill(child: GradientBackground()),
           Positioned.fill(
             top: 100,
             child: _isLoading
@@ -975,6 +967,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
+
   Widget _buildStatCard(
     String title,
     String value,
@@ -1092,6 +1085,15 @@ class _PemanduanPageState extends State<PemanduanPage> {
     return values.map((v) => v.trim()).join('\n');
   }
 
+  List<String> _parseMultipleValues(String value) {
+    if (value.isEmpty || value == '-') return [];
+    return value
+        .split(',')
+        .map((v) => v.trim())
+        .where((v) => v.isNotEmpty && v != '-')
+        .toList();
+  }
+
   Widget _buildTable() {
     return Container(
       decoration: BoxDecoration(
@@ -1175,6 +1177,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
             ),
             DataColumn(
               label: Text(
+                'Tugboat Dipakai',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            DataColumn(
+              label: Text(
                 'Arah',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
@@ -1252,6 +1260,14 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   ),
                 ),
                 DataCell(Text(data['pilot_name'] ?? '-')),
+                DataCell(
+                  Text(
+                    _formatMultipleValues(
+                      (data['assist_tug_name'] ?? '-').toString(),
+                    ),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
                 DataCell(
                   Text(
                     '${data['from_where'] ?? '-'} → ${data['to_where'] ?? '-'}',
@@ -1399,6 +1415,90 @@ class _PemanduanPageState extends State<PemanduanPage> {
               Text(
                 'Pandu: Capt. ${data['pilot_name'] ?? '-'}',
                 style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 8),
+              Builder(
+                builder: (context) {
+                  final tugboatList = _parseMultipleValues(
+                    (data['assist_tug_name'] ?? '-').toString(),
+                  );
+
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color.fromRGBO(245, 247, 252, 1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.directions_boat,
+                              size: 16,
+                              color: Colors.grey[700],
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Tugboat Dipakai',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (tugboatList.isEmpty)
+                          Text(
+                            '-',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          )
+                        else
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: tugboatList
+                                .map(
+                                  (tug) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: const Color.fromRGBO(
+                                          0,
+                                          40,
+                                          120,
+                                          0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      tug,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                      ],
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 8),
               Row(
@@ -1563,12 +1663,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 _formatTimeOnly(data['pilot_on_board']),
               ),
               _buildDetailRow(
-                'Pandu Selesai',
-                _formatTimeOnly(data['pilot_finished']),
-              ),
-              _buildDetailRow(
                 'Kapal Bergerak',
                 _formatTimeOnly(data['vessel_start']),
+              ),
+              _buildDetailRow(
+                'Pandu Selesai',
+                _formatTimeOnly(data['pilot_finished']),
               ),
               _buildDetailRow(
                 'Pandu Turun',
@@ -1785,8 +1885,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
           bool showTimeFields =
               selectedStatus == 'Aktif' || selectedStatus == 'Selesai';
 
-          // HANYA tampilkan signature canvas untuk status Aktif
-          bool showSignatureCanvas = selectedStatus == 'Aktif';
+          // Tampilkan signature canvas untuk status Aktif dan Selesai
+          bool showSignatureCanvas =
+              selectedStatus == 'Aktif' || selectedStatus == 'Selesai';
 
           return AlertDialog(
             insetPadding: const EdgeInsets.symmetric(
@@ -2305,71 +2406,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ==============================================
-                    // SIGNATURE CANVAS - HANYA UNTUK STATUS AKTIF
-                    // ==============================================
-                    if (showSignatureCanvas) ...[
-                      // Info Box
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue[200]!),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Tanda tangan ini akan langsung masuk ke PDF dan TIDAK disimpan di database.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      const Text(
-                        'Tanda Tangan',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        height: 200,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Signature(controller: signatureController),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton.icon(
-                            onPressed: () {
-                              signatureController.clear();
-                            },
-                            icon: const Icon(Icons.clear, size: 18),
-                            label: const Text('Hapus Tanda Tangan'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.red,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
                     // Time Fields (shown only for Aktif or Selesai)
                     if (showTimeFields) ...[
                       const Text(
@@ -2395,24 +2431,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: TextField(
-                              controller: pilotFinishedController,
-                              decoration: const InputDecoration(
-                                labelText: 'Pandu Selesai',
-                                border: OutlineInputBorder(),
-                                suffixIcon: Icon(Icons.access_time),
-                              ),
-                              readOnly: true,
-                              onTap: () =>
-                                  selectTime(context, pilotFinishedController),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
                               controller: vesselStartController,
                               decoration: const InputDecoration(
                                 labelText: 'Kapal Bergerak',
@@ -2422,6 +2440,24 @@ class _PemanduanPageState extends State<PemanduanPage> {
                               readOnly: true,
                               onTap: () =>
                                   selectTime(context, vesselStartController),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: pilotFinishedController,
+                              decoration: const InputDecoration(
+                                labelText: 'Pandu Selesai',
+                                border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.access_time),
+                              ),
+                              readOnly: true,
+                              onTap: () =>
+                                  selectTime(context, pilotFinishedController),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -2558,6 +2594,71 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       ),
                       const SizedBox(height: 12),
                     ],
+
+                    // Signature canvas diletakkan paling akhir
+                    if (showSignatureCanvas) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue[700],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tanda tangan ini akan langsung masuk ke PDF dan TIDAK disimpan di database.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blue[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Tanda Tangan Nahkoda',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 200,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Signature(controller: signatureController),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () {
+                              signatureController.clear();
+                            },
+                            icon: const Icon(Icons.clear, size: 18),
+                            label: const Text('Hapus Tanda Tangan'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ],
                 ),
               ),
@@ -2652,16 +2753,21 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   // SIMPAN SIGNATURE KE STATE (TEMPORARY)
                   // TIDAK DISIMPAN KE DATABASE!
                   // ==============================================
-                  if (selectedStatus == 'Aktif' && signatureController.isNotEmpty) {
+                  if ((selectedStatus == 'Aktif' || selectedStatus == 'Selesai') &&
+                      signatureController.isNotEmpty) {
                     final signatureBytes = await signatureController.toPngBytes();
                     if (signatureBytes != null) {
                       final signatureId = '${data['id']}';
                       final signatureBase64 = base64Encode(signatureBytes);
+                      final signatureDataUrl = 'data:image/png;base64,$signatureBase64';
 
                       setState(() {
                         // Simpan temporary per ID untuk PDF generation
                         _pendingSignatures[signatureId] = signatureBase64;
                       });
+
+                      // Kirim juga saat update agar bisa disimpan permanen (jika kolom tersedia)
+                      updateData['signature'] = signatureDataUrl;
                       
                       // Tampilkan notifikasi
                       if (mounted) {
@@ -2815,6 +2921,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
       if (signatureToSend == null && _pendingSignatures.length == 1) {
         signatureToSend = _pendingSignatures.values.first;
       }
+      if (signatureToSend == null &&
+          data['signature'] != null &&
+          data['signature'].toString().trim().isNotEmpty) {
+        signatureToSend = data['signature'].toString().trim();
+      }
+
+      String? signaturePayload;
+      if (signatureToSend != null && signatureToSend.trim().isNotEmpty) {
+        if (signatureToSend.startsWith('data:image')) {
+          signaturePayload = signatureToSend;
+        } else {
+          signaturePayload = 'data:image/png;base64,$signatureToSend';
+        }
+      }
       if (signatureToSend != null) {
         print('📝 Signature found for ID $id - akan dikirim ke backend');
       } else {
@@ -2836,9 +2956,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'id': id,
-          'signature': signatureToSend != null
-              ? 'data:image/png;base64,$signatureToSend'
-              : null,
+          'signature': signaturePayload,
         }),
       ).timeout(
         const Duration(seconds: 30),

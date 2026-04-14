@@ -16,26 +16,11 @@ class ResponsiveNavBarPage extends StatefulWidget {
 }
 
 class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final String _baseUrl = 'http://192.168.1.18/pilotage_and_assistance_app/api';
+  final String _baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
   String _userName = 'User';
   bool? _isDashboardLoading = true;
 
-  Map<String, int>? _stats = {
-    'total': 0,
-    'active': 0,
-    'completed': 0,
-    'scheduled': 0,
-  };
-
   List<Map<String, dynamic>>? _recentActivities = [];
-
-  Map<String, int> get _safeStats => _stats ?? const {
-        'total': 0,
-        'active': 0,
-        'completed': 0,
-        'scheduled': 0,
-      };
 
   List<Map<String, dynamic>> get _safeRecentActivities =>
       _recentActivities ?? const [];
@@ -52,29 +37,6 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
     setState(() {
       _userName = prefs.getString('userName') ?? 'User';
     });
-  }
-
-  Future<int> _fetchCountByStatus(String status) async {
-    final queryParams = <String, String>{'page': '1', 'limit': '1'};
-    if (status.isNotEmpty) {
-      queryParams['status'] = status;
-    }
-
-    final uri = Uri.parse(
-      '$_baseUrl/get_pilotages.php',
-    ).replace(queryParameters: queryParams);
-
-    final response = await http.get(uri);
-    if (response.statusCode != 200) {
-      throw Exception('Server error: ${response.statusCode}');
-    }
-
-    final result = jsonDecode(response.body);
-    if (result['status'] != 'success') {
-      throw Exception(result['message'] ?? 'Gagal mengambil statistik');
-    }
-
-    return result['total'] ?? 0;
   }
 
   Future<List<Map<String, dynamic>>> _fetchRecentActivities() async {
@@ -99,24 +61,12 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
     setState(() => _isDashboardLoading = true);
 
     try {
-      final values = await Future.wait([
-        _fetchCountByStatus(''),
-        _fetchCountByStatus('Aktif'),
-        _fetchCountByStatus('Selesai'),
-        _fetchCountByStatus('Terjadwal'),
-        _fetchRecentActivities(),
-      ]);
+      final recentActivities = await _fetchRecentActivities();
 
       if (!mounted) return;
 
       setState(() {
-        _stats = {
-          'total': values[0] as int,
-          'active': values[1] as int,
-          'completed': values[2] as int,
-          'scheduled': values[3] as int,
-        };
-        _recentActivities = values[4] as List<Map<String, dynamic>>;
+        _recentActivities = recentActivities;
         _isDashboardLoading = false;
       });
     } catch (_) {
@@ -139,13 +89,9 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool isLargeScreen = width > 800;
-
     return Theme(
       data: ThemeData.light(),
       child: Scaffold(
-        key: _scaffoldKey,
         backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
         body: Stack(
           children: [
@@ -181,19 +127,9 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // ✅ Kiri: Logo + Nama / tombol menu (untuk HP)
+                        // ✅ Kiri: Logo + Nama
                         Row(
                           children: [
-                            if (!isLargeScreen)
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.menu,
-                                  color: Color.fromRGBO(12, 10, 80, 1),
-                                  size: 30,
-                                ),
-                                onPressed: () =>
-                                    _scaffoldKey.currentState?.openDrawer(),
-                              ),
                             Image.asset(
                               'assets/images/LOGO-SIS.png',
                               height: 55,
@@ -210,9 +146,6 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                           ],
                         ),
 
-                        // ✅ Tengah: Menu (kalau layar besar)
-                        if (isLargeScreen) _navBarItems(context),
-
                         // ✅ Kanan: Profil Icon
                         _ProfileIcon(
                           userName: _userName,
@@ -226,245 +159,351 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
             ),
           ],
         ),
-        drawer: isLargeScreen ? null : _drawer(context),
       ),
     );
   }
 
   Widget _buildDashboardBody() {
     if (_isDashboardLoading ?? true) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
     }
+
+    final width = MediaQuery.of(context).size.width;
+    final bool isLargeScreen = width > 900;
+    final double maxWidth = isLargeScreen ? 1100 : double.infinity;
+    final double minHeight = MediaQuery.of(context).size.height - 100;
 
     return RefreshIndicator(
       onRefresh: _loadDashboard,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Dashboard Semua Kegiatan',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _buildStatCard('Total Kegiatan', _safeStats['total']!, Colors.white),
-                _buildStatCard('Aktif', _safeStats['active']!, Colors.orange),
-                _buildStatCard('Selesai', _safeStats['completed']!, Colors.green),
-                _buildStatCard('Terjadwal', _safeStats['scheduled']!, Colors.blue),
+        child: Container(
+          constraints: BoxConstraints(minHeight: minHeight),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.fromRGBO(0, 40, 120, 1),
+                Color.fromRGBO(6, 72, 140, 1),
+                Color.fromRGBO(10, 120, 140, 1),
               ],
             ),
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                top: -80,
+                right: -60,
+                child: _buildGlowCircle(
+                  size: 220,
+                  color: Colors.white.withOpacity(0.12),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Kegiatan Terbaru',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Positioned(
+                top: 180,
+                left: -90,
+                child: _buildGlowCircle(
+                  size: 240,
+                  color: Colors.white.withOpacity(0.08),
+                ),
+              ),
+              Positioned(
+                bottom: -120,
+                right: -40,
+                child: _buildGlowCircle(
+                  size: 260,
+                  color: Colors.white.withOpacity(0.1),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxWidth),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeroCard(),
+                        const SizedBox(height: 18),
+                        _buildQuickActions(isLargeScreen),
+                        const SizedBox(height: 18),
+                        _buildRecentActivities(),
+                        const SizedBox(height: 12),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  if (_safeRecentActivities.isEmpty)
-                    const Text('Belum ada data kegiatan.')
-                  else
-                    ..._safeRecentActivities.map((item) {
-                      final vessel = (item['vessel_name'] ?? '-').toString();
-                      final pilot = (item['pilot_name'] ?? '-').toString();
-                      final status = (item['status'] ?? 'Terjadwal').toString();
-                      final date = (item['date'] ?? '-').toString();
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color.fromRGBO(245, 247, 252, 1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    vessel,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text('Pilot: $pilot'),
-                                  Text('Tanggal: $date'),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _statusColor(status),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Text(
-                                status,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(String label, int value, Color accentColor) {
+  Widget _buildGlowCircle({required double size, required Color color}) {
     return Container(
-      width: 220,
-      padding: const EdgeInsets.all(14),
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accentColor.withOpacity(0.35), width: 1.2),
+        color: color,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  Widget _buildHeroCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
+            'Selamat datang, $_userName',
             style: const TextStyle(
-              fontSize: 13,
-              color: Color.fromRGBO(70, 70, 70, 1),
-              fontWeight: FontWeight.w600,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color.fromRGBO(12, 10, 80, 1),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '$value',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: accentColor,
-            ),
+          const SizedBox(height: 6),
+          const Text(
+            'Pantau semua kegiatan pemanduan dengan ringkas, jelas, dan cepat.',
+            style: TextStyle(color: Colors.black54, height: 1.4),
           ),
         ],
       ),
     );
   }
 
-  // ✅ Drawer (untuk mobile)
-  Widget _drawer(BuildContext context) => Drawer(
-    child: ListView(
+  Widget _buildQuickActions(bool isLargeScreen) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
       children: [
-        DrawerHeader(
-          decoration: const BoxDecoration(color: Color.fromRGBO(0, 40, 120, 1)),
+        _buildQuickActionCard(
+          title: 'Buka Pemanduan & Penundaan',
+          subtitle: 'Lihat daftar & detail kegiatan',
+          icon: Icons.assignment,
+          color: const Color.fromRGBO(0, 40, 120, 1),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const PemanduanPage()),
+            );
+          },
+        ),
+        _buildQuickActionCard(
+          title: 'Refresh Data',
+          subtitle: 'Perbarui data terbaru',
+          icon: Icons.refresh,
+          color: Colors.teal,
+          onTap: _loadDashboard,
+        ),
+        _buildQuickActionCard(
+          title: 'Profil Akun',
+          subtitle: 'Kelola informasi akun',
+          icon: Icons.person,
+          color: Colors.orange,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfilePage()),
+            );
+          },
+        ),
+        if (isLargeScreen)
+          _buildQuickActionCard(
+            title: 'Pengaturan',
+            subtitle: 'Preferensi aplikasi',
+            icon: Icons.settings,
+            color: Colors.blueGrey,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double cardWidth = screenWidth < 500 ? double.infinity : 260;
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          width: cardWidth,
+          padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              Image.asset('assets/images/LOGO-SIS.png', height: 55),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  "Snepac Indo Service",
-                  style: TextStyle(color: Colors.white, fontSize: 17),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-        ..._menuItems.map(
-          (item) => ListTile(
-            onTap: () {
-              Navigator.pop(context);
-              if (item == 'Pemanduan & Penundaan') {
-                Navigator.of(context, rootNavigator: true).push(
-                  MaterialPageRoute(
-                    builder: (context) => const PemanduanPage(),
-                  ),
-                );
-              } else if (item == 'Dashboard') {
-                _loadDashboard();
-              }
-            },
-            leading: item == 'Dashboard'
-                ? const Icon(
-                    Icons.dashboard,
-                    color: Color.fromRGBO(0, 40, 120, 1),
-                    size: 28,
-                  )
-                : Image.asset(
-                    'assets/icons/pilot1.png',
-                    width: 28,
-                    height: 27,
-                  ),
+      ),
+    );
+  }
 
-            title: Text(
-              item,
-              style: const TextStyle(
-                fontSize: 18,
-                color: Color.fromRGBO(12, 10, 80, 1),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+  Widget _buildRecentActivities() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Kegiatan Terbaru',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          if (_safeRecentActivities.isEmpty)
+            const Text('Belum ada data kegiatan.')
+          else
+            ..._safeRecentActivities.map((item) {
+              final vessel = (item['vessel_name'] ?? '-').toString();
+              final pilot = (item['pilot_name'] ?? '-').toString();
+              final status = (item['status'] ?? 'Terjadwal').toString();
+              final date = (item['date'] ?? '-').toString();
 
-  // ✅ Menu items (desktop view)
-  Widget _navBarItems(BuildContext context) {
-    return Row(
-      children: _menuItems.map((item) {
-        return InkWell(
-          onTap: () {
-            if (item == 'Pemanduan & Penundaan') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PemanduanPage()),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color.fromRGBO(245, 247, 252, 1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: _statusColor(status),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            vessel,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Pilot: $pilot',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            'Tanggal: $date',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _statusColor(status),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        status,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               );
-            } else if (item == 'Dashboard') {
-              _loadDashboard();
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Text(
-              item,
-              style: const TextStyle(
-                fontSize: 18,
-                color: Color.fromRGBO(12, 10, 80, 1),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
+            }),
+        ],
+      ),
     );
   }
 
@@ -480,8 +519,6 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
     }
   }
 }
-
-final List<String> _menuItems = ['Dashboard', 'Pemanduan & Penundaan'];
 
 enum Menu { itemOne, itemTwo, itemThree }
 

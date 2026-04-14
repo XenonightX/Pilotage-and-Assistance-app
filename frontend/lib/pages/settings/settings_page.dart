@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -33,9 +34,10 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
+          const Positioned.fill(child: GradientBackground()),
           // Main Content
           Positioned.fill(
             top: 100,

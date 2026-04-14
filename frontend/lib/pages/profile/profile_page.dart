@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pilotage_and_assistance_app/pages/profile/edit_profile_page.dart';
-import 'package:pilotage_and_assistance_app/pages/profile/change_password_page.dart';
+import 'package:pilotage_and_assistance_app/pages/superadmin/add_user_page.dart';
+import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -37,15 +38,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Check if user is admin
   bool get _isAdmin => _userRole.toLowerCase() == 'admin';
+  bool get _isSuperadmin => _userRole.toLowerCase() == 'superadmin';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+      backgroundColor: Colors.transparent,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Stack(
               children: [
+                const Positioned.fill(child: GradientBackground()),
                 // Main Content
                 Positioned.fill(
                   top: 100,
@@ -190,38 +193,41 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 10), 
+                              if (_isSuperadmin) ...[
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () async {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const AddUserPage(),
+                                        ),
+                                      );
 
-                              // Tombol Ganti Password
-                              SizedBox(
-                                width: double.infinity,
-                                height: 50,
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => const ChangePasswordPage(),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.lock),
-                                  label: const Text(
-                                    'Ganti Password',
-                                    style: TextStyle(fontSize: 16),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    side: const BorderSide(
-                                      color: Colors.white,
-                                      width: 2,
+                                      if (result == true) {
+                                        _loadUserData();
+                                      }
+                                    },
+                                    icon: const Icon(Icons.person_add_alt_1),
+                                    label: const Text(
+                                      'Tambah User',
+                                      style: TextStyle(fontSize: 16),
                                     ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF00897B),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(height: 10),
+                              ],
                             ],
                           ),
                         ),

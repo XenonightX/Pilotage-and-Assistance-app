@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:pilotage_and_assistance_app/utils/user_session.dart';
+import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -52,6 +53,9 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   String selectedDirection = 'IN';
   String vesselType = 'Motor'; // Motor atau Tug & Tongkang
   bool _isLoading = false;
+  bool _isLoadingPilots = false;
+  List<String> _pilotOptions = [];
+  String? _selectedPilotName;
 
   // Assist Tug variables - now supports multiple tugs
   List<Map<String, String>> selectedAssistTugs = [];
@@ -65,7 +69,11 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   @override
   void initState() {
     super.initState();
-    pilotController.text = UserSession.userName ?? '';
+    if (UserSession.isPilot()) {
+      pilotController.text = UserSession.userName ?? '';
+    } else if (UserSession.isAdmin() || UserSession.isSuperadmin()) {
+      _fetchPilotOptions();
+    }
     assistTugOptions = [
       {'name': 'TB. MEGAMAS VISHA', 'power': '2060', 'bollard_pull': '25'},
       {'name': 'TB. HEMINGWAY 2400', 'power': '2400', 'bollard_pull': '24'},
@@ -87,6 +95,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
     agencyController.dispose();
     foredraftController.dispose();
     aftdraftController.dispose();
+    pilotController.dispose();
     tugNameController.dispose();
     jettyController.dispose();
     lastPortController.dispose();
@@ -94,6 +103,44 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
     dateController.dispose();
     timeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchPilotOptions() async {
+    setState(() => _isLoadingPilots = true);
+
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/get_pilot_users.php'));
+      final result = jsonDecode(response.body);
+
+      if (response.statusCode != 200 || result['status'] != 'success') {
+        throw Exception(result['message'] ?? 'Gagal memuat daftar pandu');
+      }
+
+      final List<dynamic> data = result['data'] ?? [];
+      final pilotNames = data
+          .map((item) => (item['name'] ?? '').toString().trim())
+          .where((name) => name.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+
+      if (!mounted) return;
+      setState(() {
+        _pilotOptions = pilotNames;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat daftar pandu: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPilots = false);
+      }
+    }
   }
 
   Future<void> _submitData() async {
@@ -276,11 +323,14 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   @override
   Widget build(BuildContext context) {
     final bool isPilot = UserSession.isPilot();
+    final bool canSelectPilot =
+        (UserSession.isAdmin() || UserSession.isSuperadmin()) && !isPilot;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FA),
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
+          const Positioned.fill(child: GradientBackground()),
           Positioned.fill(
             top: 100,
             child: Form(
@@ -887,47 +937,102 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     _buildSectionTitle('Informasi Pemanduan'),
                     const SizedBox(height: 16),
 
-                    TextFormField(
-                      controller: pilotController,
-                      readOnly: isPilot,
-                      decoration: InputDecoration(
-                        labelText: 'Nama Pandu *',
-                        border: const OutlineInputBorder(),
-                        filled: true,
-                        fillColor: isPilot ? Colors.grey[200] : Colors.white,
-
-                        // === Prefix Icon dari Asset ===
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.all(10),
-                          child: Image.asset(
-                            'assets/icons/pilot1.png', // Ganti sesuai icon
-                            width: 20,
-                            height: 20,
-                            fit: BoxFit.contain,
+                    if (canSelectPilot)
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedPilotName,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Nama Pandu *',
+                          border: const OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Image.asset(
+                              'assets/icons/pilot1.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
                           ),
+                          suffixIcon: _isLoadingPilots
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : null,
                         ),
-
-                        // === Suffix Icon Pakai Asset Jika isPilot ===
-                        suffixIcon: isPilot
-                            ? Padding(
-                                padding: const EdgeInsets.all(7),
-                                child: Image.asset(
-                                  'assets/icons/lock.png', // file icon gembok
-                                  width: 16,
-                                  height: 16,
-                                  fit: BoxFit.contain,
-                                ),
-                              )
-                            : null,
+                        hint: Text(
+                          _pilotOptions.isEmpty && !_isLoadingPilots
+                              ? 'Tidak ada data pandu tersedia'
+                              : 'Pilih nama pandu',
+                        ),
+                        items: _pilotOptions
+                            .map(
+                              (pilotName) => DropdownMenuItem<String>(
+                                value: pilotName,
+                                child: Text(pilotName),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _isLoadingPilots || _pilotOptions.isEmpty
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  _selectedPilotName = value;
+                                  pilotController.text = value ?? '';
+                                });
+                              },
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nama pandu wajib dipilih';
+                          }
+                          return null;
+                        },
+                      )
+                    else
+                      TextFormField(
+                        controller: pilotController,
+                        readOnly: isPilot,
+                        decoration: InputDecoration(
+                          labelText: 'Nama Pandu *',
+                          border: const OutlineInputBorder(),
+                          filled: true,
+                          fillColor: isPilot ? Colors.grey[200] : Colors.white,
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Image.asset(
+                              'assets/icons/pilot1.png',
+                              width: 20,
+                              height: 20,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          suffixIcon: isPilot
+                              ? Padding(
+                                  padding: const EdgeInsets.all(7),
+                                  child: Image.asset(
+                                    'assets/icons/lock.png',
+                                    width: 16,
+                                    height: 16,
+                                    fit: BoxFit.contain,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Nama pandu wajib diisi';
+                          }
+                          return null;
+                        },
                       ),
-
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Nama pandu wajib diisi';
-                        }
-                        return null;
-                      },
-                    ),
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(

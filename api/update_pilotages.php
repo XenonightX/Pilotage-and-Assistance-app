@@ -59,6 +59,11 @@ try {
     $engine_power = $data["engine_power"] ?? '';
     $bollard_pull_power = $data["bollard_pull_power"] ?? '';
     $status = $data["status"] ?? 'Terjadwal';
+    $signature = $data["signature"] ?? null;
+    if (is_string($signature)) {
+        $signature = trim($signature);
+        if ($signature === '') $signature = null;
+    }
 
     // Otomatis set selesai jika pandu turun sudah diisi
     if (!empty($pilot_get_off)) {
@@ -66,6 +71,23 @@ try {
     }
 
     error_log("🔄 Updating ID: $id with from_where: $from_where, to_where: $to_where");
+
+    // Cek dukungan kolom signature (opsional, agar backward compatible)
+    $hasSignatureColumn = false;
+    $checkSignatureColumn = $conn->query("SHOW COLUMNS FROM activity_logs LIKE 'signature'");
+    if ($checkSignatureColumn && $checkSignatureColumn->num_rows > 0) {
+        $hasSignatureColumn = true;
+    }
+
+    // Jika signature dikirim tetapi kolom belum ada, coba tambahkan otomatis
+    if (!$hasSignatureColumn && !empty($signature)) {
+        if ($conn->query("ALTER TABLE activity_logs ADD COLUMN signature LONGTEXT NULL") === true) {
+            $hasSignatureColumn = true;
+            error_log("Signature column created automatically");
+        } else {
+            error_log("Failed to create signature column: " . $conn->error);
+        }
+    }
 
     $sql = "UPDATE activity_logs SET
                 vessel_name = ?,
@@ -89,7 +111,15 @@ try {
                 assist_tug_name = ?,
                 engine_power = ?,
                 bollard_pull_power = ?,
-                status = ?
+                status = ?";
+
+    $withSignature = $hasSignatureColumn && !empty($signature);
+    if ($withSignature) {
+        $sql .= ",
+                signature = ?";
+    }
+
+    $sql .= "
             WHERE id = ?";
 
     $stmt = $conn->prepare($sql);
@@ -97,14 +127,25 @@ try {
         throw new Exception("Prepare failed: " . $conn->error);
     }
 
-    $bind_result = $stmt->bind_param(
-        "ssssssssssssssssssssssi",
-        $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
-        $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
-        $from_where, $to_where, $last_port, $next_port, $pilot_on_board,
-        $pilot_finished, $vessel_start, $pilot_get_off, $assist_tug_name,
-        $engine_power, $bollard_pull_power, $status, $id
-    );
+    if ($withSignature) {
+        $bind_result = $stmt->bind_param(
+            "sssssssssssssssssssssssi",
+            $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
+            $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
+            $from_where, $to_where, $last_port, $next_port, $pilot_on_board,
+            $pilot_finished, $vessel_start, $pilot_get_off, $assist_tug_name,
+            $engine_power, $bollard_pull_power, $status, $signature, $id
+        );
+    } else {
+        $bind_result = $stmt->bind_param(
+            "ssssssssssssssssssssssi",
+            $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
+            $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
+            $from_where, $to_where, $last_port, $next_port, $pilot_on_board,
+            $pilot_finished, $vessel_start, $pilot_get_off, $assist_tug_name,
+            $engine_power, $bollard_pull_power, $status, $id
+        );
+    }
 
     if (!$bind_result) {
         throw new Exception("Bind param failed: " . $stmt->error);
