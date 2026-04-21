@@ -2944,9 +2944,14 @@ class _PemanduanPageState extends State<PemanduanPage> {
       // Prepare URL
       final url = type == 'pandu'
           ? '$baseUrl/generate_pilot_certificate.php'
-          : '$baseUrl/generate_mooring_certificate.php';
+          : '$baseUrl/generate_assistance_certificate.php';
 
       print('Requesting PDF from: $url');
+
+      final prefs = await SharedPreferences.getInstance();
+      final requesterUserId = prefs.getInt('userId') ?? 0;
+      final requesterName = prefs.getString('userName') ?? '';
+      final requesterRole = prefs.getString('userRole') ?? '';
 
       // ==============================================
       // KIRIM SIGNATURE VIA POST (BUKAN GET!)
@@ -2957,6 +2962,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
         body: jsonEncode({
           'id': id,
           'signature': signaturePayload,
+          'requester_user_id': requesterUserId,
+          'requester_name': requesterName,
+          'requester_role': requesterRole,
         }),
       ).timeout(
         const Duration(seconds: 30),

@@ -27,6 +27,22 @@ try {
         throw new Exception("Invalid JSON data");
     }
 
+    $legacyAssistTugNames = preg_split('/\s*(?:\/|,)\s*/', trim((string) ($data["assist_tug_name"] ?? '')));
+    if (!is_array($legacyAssistTugNames)) {
+        $legacyAssistTugNames = [];
+    }
+    $legacyAssistTugNames = array_values(array_filter(array_map('trim', $legacyAssistTugNames), static function ($value) {
+        return $value !== '';
+    }));
+
+    $legacyEnginePowers = preg_split('/\s*(?:\/|,)\s*/', trim((string) ($data["engine_power"] ?? '')));
+    if (!is_array($legacyEnginePowers)) {
+        $legacyEnginePowers = [];
+    }
+    $legacyEnginePowers = array_values(array_filter(array_map('trim', $legacyEnginePowers), static function ($value) {
+        return $value !== '';
+    }));
+
     $vessel_name = $data["vessel_name"] ?? '';
     $flag = $data["flag"] ?? '';
     $gross_tonnage = $data["gross_tonnage"] ?? '';
@@ -38,7 +54,7 @@ try {
     $next_port = $data["next_port"] ?? '';
     $date = $data["date"] ?? '';
     $assistance_start = $data["assistance_start"] ?? '';
-    $assist_tug_name_1 = $data["assist_tug_name_1"] ?? '';
+    $assist_tug_name_1 = $data["assist_tug_name_1"] ?? ($legacyAssistTugNames[0] ?? '');
     
     $call_sign = $data["call_sign"] ?? '';
     $master_name = $data["master_name"] ?? '';
@@ -46,23 +62,56 @@ try {
     $aft_draft = $data["aft_draft"] ?? '';
     $status = $data["status"] ?? 'Terjadwal';
     
-    $assist_tug_count = intval($data["assist_tug_count"] ?? 1);
-    $engine_power_1 = isset($data["engine_power_1"]) ? intval($data["engine_power_1"]) : 0;
-    $assist_tug_name_2 = $data["assist_tug_name_2"] ?? '';
-    $engine_power_2 = isset($data["engine_power_2"]) ? intval($data["engine_power_2"]) : 0;
+    $assist_tug_name_2 = $data["assist_tug_name_2"] ?? ($legacyAssistTugNames[1] ?? '');
+    $assist_tug_name_3 = $data["assist_tug_name_3"] ?? ($legacyAssistTugNames[2] ?? '');
+
+    $defaultAssistTugCount = count(array_filter([
+        trim((string) $assist_tug_name_1),
+        trim((string) $assist_tug_name_2),
+        trim((string) $assist_tug_name_3),
+    ], static function ($value) {
+        return $value !== '';
+    }));
+    if ($defaultAssistTugCount < 1 && !empty($legacyAssistTugNames)) {
+        $defaultAssistTugCount = count($legacyAssistTugNames);
+    }
+    if ($defaultAssistTugCount < 1) {
+        $defaultAssistTugCount = 1;
+    }
+
+    $assist_tug_count = intval($data["assist_tug_count"] ?? $defaultAssistTugCount);
+    if ($assist_tug_count < 1) {
+        $assist_tug_count = 1;
+    }
+    if ($assist_tug_count > 3) {
+        $assist_tug_count = 3;
+    }
+    $engine_power_1 = isset($data["engine_power_1"]) ? intval($data["engine_power_1"]) : (int) ($legacyEnginePowers[0] ?? 0);
+    $engine_power_2 = isset($data["engine_power_2"]) ? intval($data["engine_power_2"]) : (int) ($legacyEnginePowers[1] ?? 0);
+    $engine_power_3 = isset($data["engine_power_3"]) ? intval($data["engine_power_3"]) : (int) ($legacyEnginePowers[2] ?? 0);
     
-    $assist_tug_name = $assist_tug_name_1;
-    if ($assist_tug_count == 2 && !empty($assist_tug_name_2)) {
-        $assist_tug_name .= ' / ' . $assist_tug_name_2;
+    $assistTugNames = [];
+    $assistTugPowers = [];
+    foreach ([
+        ['name' => $assist_tug_name_1, 'power' => $engine_power_1],
+        ['name' => $assist_tug_name_2, 'power' => $engine_power_2],
+        ['name' => $assist_tug_name_3, 'power' => $engine_power_3],
+    ] as $index => $tug) {
+        if ($index >= $assist_tug_count) {
+            break;
+        }
+        $name = trim((string) $tug['name']);
+        $power = (int) $tug['power'];
+        if ($name !== '') {
+            $assistTugNames[] = $name;
+        }
+        if ($power > 0) {
+            $assistTugPowers[] = (string) $power;
+        }
     }
-    
-    $engine_power = '';
-    if ($engine_power_1 > 0) {
-        $engine_power = strval($engine_power_1);
-    }
-    if ($assist_tug_count == 2 && $engine_power_2 > 0) {
-        $engine_power .= ($engine_power ? ' / ' : '') . strval($engine_power_2);
-    }
+
+    $assist_tug_name = implode(' / ', $assistTugNames);
+    $engine_power = implode(' / ', $assistTugPowers);
 
     error_log("Validation check");
     if (empty($vessel_name) || empty($flag) || empty($gross_tonnage) || 
@@ -73,14 +122,48 @@ try {
     }
 
     error_log("Preparing SQL");
+    $hasThirdAssistColumns = false;
+    $checkThirdNameColumn = $conn->query("SHOW COLUMNS FROM assistance_logs LIKE 'assist_tug_name_3'");
+    $checkThirdPowerColumn = $conn->query("SHOW COLUMNS FROM assistance_logs LIKE 'engine_power_3'");
+    if (
+        $checkThirdNameColumn && $checkThirdNameColumn->num_rows > 0 &&
+        $checkThirdPowerColumn && $checkThirdPowerColumn->num_rows > 0
+    ) {
+        $hasThirdAssistColumns = true;
+    }
+
+    if (!$hasThirdAssistColumns && ($assist_tug_count >= 3 || trim($assist_tug_name_3) !== '' || $engine_power_3 > 0)) {
+        if ($conn->query("ALTER TABLE assistance_logs ADD COLUMN assist_tug_name_3 VARCHAR(255) NULL AFTER engine_power_2") === true) {
+            $nameColumnAdded = true;
+        } else {
+            $nameColumnAdded = strpos(strtolower($conn->error), 'duplicate column') !== false;
+        }
+
+        if ($conn->query("ALTER TABLE assistance_logs ADD COLUMN engine_power_3 INT NULL AFTER assist_tug_name_3") === true) {
+            $powerColumnAdded = true;
+        } else {
+            $powerColumnAdded = strpos(strtolower($conn->error), 'duplicate column') !== false;
+        }
+
+        $hasThirdAssistColumns = $nameColumnAdded && $powerColumnAdded;
+    }
+
     $sql = "INSERT INTO assistance_logs (
                 vessel_name, call_sign, master_name, flag, gross_tonnage, 
                 agency, loa, fore_draft, aft_draft, assist_tug_name,
                 from_where, to_where, last_port, next_port, date, assistance_start,
                 engine_power, status,
                 assist_tug_count, assist_tug_name_1, engine_power_1, 
-                assist_tug_name_2, engine_power_2
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                assist_tug_name_2, engine_power_2";
+    if ($hasThirdAssistColumns) {
+        $sql .= ", assist_tug_name_3, engine_power_3";
+    }
+    $sql .= "
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
+    if ($hasThirdAssistColumns) {
+        $sql .= ", ?, ?";
+    }
+    $sql .= ")";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
@@ -89,15 +172,30 @@ try {
     }
     
     error_log("Binding parameters");
-    $bind_result = $stmt->bind_param(
-        "sssssssssssssssssisisi", 
-        $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
-        $agency, $loa, $fore_draft, $aft_draft, $assist_tug_name,
-        $from_where, $to_where, $last_port, $next_port, $date, $assistance_start,
-        $engine_power, $status,
-        $assist_tug_count, $assist_tug_name_1, $engine_power_1,
-        $assist_tug_name_2, $engine_power_2
-    );
+    if ($hasThirdAssistColumns) {
+        $types = str_repeat('s', 18) . 'isisisi';
+        $bind_result = $stmt->bind_param(
+            $types,
+            $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
+            $agency, $loa, $fore_draft, $aft_draft, $assist_tug_name,
+            $from_where, $to_where, $last_port, $next_port, $date, $assistance_start,
+            $engine_power, $status,
+            $assist_tug_count, $assist_tug_name_1, $engine_power_1,
+            $assist_tug_name_2, $engine_power_2,
+            $assist_tug_name_3, $engine_power_3
+        );
+    } else {
+        $types = str_repeat('s', 18) . 'isisi';
+        $bind_result = $stmt->bind_param(
+            $types, 
+            $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
+            $agency, $loa, $fore_draft, $aft_draft, $assist_tug_name,
+            $from_where, $to_where, $last_port, $next_port, $date, $assistance_start,
+            $engine_power, $status,
+            $assist_tug_count, $assist_tug_name_1, $engine_power_1,
+            $assist_tug_name_2, $engine_power_2
+        );
+    }
     
     if (!$bind_result) {
         error_log("Bind failed");

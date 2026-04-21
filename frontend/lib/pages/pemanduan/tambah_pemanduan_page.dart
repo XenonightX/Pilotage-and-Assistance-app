@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:pilotage_and_assistance_app/utils/user_session.dart';
-import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -54,7 +53,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   String vesselType = 'Motor'; // Motor atau Tug & Tongkang
   bool _isLoading = false;
   bool _isLoadingPilots = false;
-  List<String> _pilotOptions = [];
+  List<Map<String, dynamic>> _pilotOptions = [];
+  int? _selectedPilotUserId;
   String? _selectedPilotName;
 
   // Assist Tug variables - now supports multiple tugs
@@ -71,6 +71,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
     super.initState();
     if (UserSession.isPilot()) {
       pilotController.text = UserSession.userName ?? '';
+      _selectedPilotUserId = UserSession.userId;
+      _selectedPilotName = UserSession.userName;
     } else if (UserSession.isAdmin() || UserSession.isSuperadmin()) {
       _fetchPilotOptions();
     }
@@ -105,6 +107,18 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
     super.dispose();
   }
 
+  Map<String, dynamic>? _findPilotOptionById(int? pilotUserId) {
+    if (pilotUserId == null || pilotUserId <= 0) {
+      return null;
+    }
+    for (final pilot in _pilotOptions) {
+      if (pilot['id'] == pilotUserId) {
+        return pilot;
+      }
+    }
+    return null;
+  }
+
   Future<void> _fetchPilotOptions() async {
     setState(() => _isLoadingPilots = true);
 
@@ -117,16 +131,34 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
       }
 
       final List<dynamic> data = result['data'] ?? [];
-      final pilotNames = data
-          .map((item) => (item['name'] ?? '').toString().trim())
-          .where((name) => name.isNotEmpty)
-          .toSet()
+      final pilotOptions = data
+          .map((item) {
+            final map = item as Map<String, dynamic>;
+            final id = int.tryParse('${map['id'] ?? ''}');
+            final name = (map['name'] ?? '').toString().trim();
+            if (id == null || id <= 0 || name.isEmpty) {
+              return null;
+            }
+            return <String, dynamic>{'id': id, 'name': name};
+          })
+          .whereType<Map<String, dynamic>>()
           .toList()
-        ..sort();
+        ..sort(
+          (a, b) => ('${a['name']}')
+              .toLowerCase()
+              .compareTo(('${b['name']}').toLowerCase()),
+        );
 
       if (!mounted) return;
       setState(() {
-        _pilotOptions = pilotNames;
+        _pilotOptions = pilotOptions;
+        if (_selectedPilotUserId != null) {
+          final selectedPilot = _findPilotOptionById(_selectedPilotUserId);
+          if (selectedPilot != null) {
+            _selectedPilotName = selectedPilot['name'] as String;
+            pilotController.text = _selectedPilotName ?? '';
+          }
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -254,6 +286,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         "aft_draft": aftdraftController.text.isEmpty
             ? null
             : aftdraftController.text,
+        "pilot_user_id": _selectedPilotUserId,
         "pilot_name": pilotController.text,
         "from_where": fromWhere,
         "to_where": toWhere,
@@ -327,10 +360,9 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         (UserSession.isAdmin() || UserSession.isSuperadmin()) && !isPilot;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
-          const Positioned.fill(child: GradientBackground()),
           Positioned.fill(
             top: 100,
             child: Form(
@@ -938,8 +970,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                     const SizedBox(height: 16),
 
                     if (canSelectPilot)
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedPilotName,
+                      DropdownButtonFormField<int>(
+                        initialValue: _selectedPilotUserId,
                         isExpanded: true,
                         decoration: InputDecoration(
                           labelText: 'Nama Pandu *',
@@ -975,22 +1007,24 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                         ),
                         items: _pilotOptions
                             .map(
-                              (pilotName) => DropdownMenuItem<String>(
-                                value: pilotName,
-                                child: Text(pilotName),
+                              (pilot) => DropdownMenuItem<int>(
+                                value: pilot['id'] as int,
+                                child: Text('${pilot['name']}'),
                               ),
                             )
                             .toList(),
                         onChanged: _isLoadingPilots || _pilotOptions.isEmpty
                             ? null
                             : (value) {
+                                final selectedPilot = _findPilotOptionById(value);
                                 setState(() {
-                                  _selectedPilotName = value;
-                                  pilotController.text = value ?? '';
+                                  _selectedPilotUserId = value;
+                                  _selectedPilotName = selectedPilot?['name'] as String?;
+                                  pilotController.text = _selectedPilotName ?? '';
                                 });
                               },
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
+                          if (value == null || value <= 0) {
                             return 'Nama pandu wajib dipilih';
                           }
                           return null;

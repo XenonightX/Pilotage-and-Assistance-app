@@ -6,6 +6,10 @@ class UserSession {
   static String? userEmail;
   static String? userRole;
 
+  static String _normalizedRole() {
+    return (userRole ?? '').trim().toLowerCase();
+  }
+
   // ✅ Set user data ke memory dan SharedPreferences
   static Future<void> setUser({
     required int id,
@@ -13,18 +17,22 @@ class UserSession {
     required String email,
     required String role,
   }) async {
+    final normalizedName = name.trim();
+    final normalizedEmail = email.trim();
+    final normalizedRole = role.trim();
+
     // Set ke memory
     userId = id;
-    userName = name;
-    userEmail = email;
-    userRole = role;
+    userName = normalizedName;
+    userEmail = normalizedEmail;
+    userRole = normalizedRole;
 
     // Set ke SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('userId', id);
-    await prefs.setString('userName', name);
-    await prefs.setString('userEmail', email);
-    await prefs.setString('userRole', role);
+    await prefs.setString('userName', normalizedName);
+    await prefs.setString('userEmail', normalizedEmail);
+    await prefs.setString('userRole', normalizedRole);
     await prefs.setBool('isLoggedIn', true);
   }
 
@@ -36,9 +44,9 @@ class UserSession {
     
     if (isLoggedIn) {
       userId = prefs.getInt('userId');
-      userName = prefs.getString('userName');
-      userEmail = prefs.getString('userEmail');
-      userRole = prefs.getString('userRole');
+      userName = prefs.getString('userName')?.trim();
+      userEmail = prefs.getString('userEmail')?.trim();
+      userRole = prefs.getString('userRole')?.trim();
       return true;
     }
     
@@ -63,18 +71,18 @@ class UserSession {
   }
 
   static bool isPilot() {
-    return userRole?.toLowerCase() == 'pilot';
+    return _normalizedRole() == 'pilot';
   }
 
   static bool isAdmin() {
-    return userRole?.toLowerCase() == 'admin';
+    return _normalizedRole() == 'admin';
   }
   
   static bool isTugboat() {
-    return userRole?.toLowerCase() == 'tugboat';
+    return _normalizedRole() == 'tugboat';
   }
   
   static bool isSuperadmin() {
-    return userRole?.toLowerCase() == 'superadmin';
+    return _normalizedRole() == 'superadmin';
   }
 }

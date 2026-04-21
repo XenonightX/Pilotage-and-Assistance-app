@@ -30,6 +30,10 @@ try {
     $agency = $data["agency"] ?? '';
     $loa = $data["loa"] ?? '';
     $pilot_name = $data["pilot_name"] ?? '';
+    $pilot_user_id = isset($data["pilot_user_id"]) ? (int) $data["pilot_user_id"] : null;
+    if ($pilot_user_id !== null && $pilot_user_id <= 0) {
+        $pilot_user_id = null;
+    }
     $from_where = $data["from_where"] ?? '';
     $to_where = $data["to_where"] ?? '';
     $last_port = $data["last_port"] ?? '';
@@ -55,23 +59,53 @@ try {
         throw new Exception("Data tidak lengkap");
     }
 
+    $hasPilotUserIdColumn = false;
+    $checkPilotUserIdColumn = $conn->query("SHOW COLUMNS FROM activity_logs LIKE 'pilot_user_id'");
+    if ($checkPilotUserIdColumn && $checkPilotUserIdColumn->num_rows > 0) {
+        $hasPilotUserIdColumn = true;
+    }
+
+    if (!$hasPilotUserIdColumn && $pilot_user_id !== null) {
+        if ($conn->query("ALTER TABLE activity_logs ADD COLUMN pilot_user_id INT NULL AFTER pilot_name") === true) {
+            $hasPilotUserIdColumn = true;
+        }
+    }
+
     $sql = "INSERT INTO activity_logs (
                 vessel_name, call_sign, master_name, flag, gross_tonnage,
-                agency, loa, fore_draft, aft_draft, pilot_name,
+                agency, loa, fore_draft, aft_draft, pilot_name";
+    if ($hasPilotUserIdColumn) {
+        $sql .= ", pilot_user_id";
+    }
+    $sql .= ",
                 from_where, to_where, last_port, next_port, date, pilot_on_board,
                 assist_tug_name, engine_power, bollard_pull_power, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
+    if ($hasPilotUserIdColumn) {
+        $sql .= ", ?";
+    }
+    $sql .= ", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
 
-    $stmt->bind_param(
-        "ssssssssssssssssssss",
-        $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
-        $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
-        $from_where, $to_where, $last_port, $next_port, $date, $pilot_on_board,
-        $assist_tug_name, $engine_power, $bollard_pull_power, $status
-    );
+    if ($hasPilotUserIdColumn) {
+        $stmt->bind_param(
+            "ssssssssssissssssssss",
+            $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
+            $agency, $loa, $fore_draft, $aft_draft, $pilot_name, $pilot_user_id,
+            $from_where, $to_where, $last_port, $next_port, $date, $pilot_on_board,
+            $assist_tug_name, $engine_power, $bollard_pull_power, $status
+        );
+    } else {
+        $stmt->bind_param(
+            "ssssssssssssssssssss",
+            $vessel_name, $call_sign, $master_name, $flag, $gross_tonnage,
+            $agency, $loa, $fore_draft, $aft_draft, $pilot_name,
+            $from_where, $to_where, $last_port, $next_port, $date, $pilot_on_board,
+            $assist_tug_name, $engine_power, $bollard_pull_power, $status
+        );
+    }
 
     if ($stmt->execute()) {
         ob_end_clean();

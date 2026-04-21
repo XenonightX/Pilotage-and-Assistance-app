@@ -16,6 +16,14 @@ $data = json_decode(file_get_contents("php://input"), true);
 $userId = $data["user_id"] ?? 0;
 $name = $data["name"] ?? '';
 $email = $data["email"] ?? '';
+$signatureData = $data["signature_data"] ?? null;
+
+if (is_string($signatureData)) {
+    $signatureData = trim($signatureData);
+    if ($signatureData === '') {
+        $signatureData = null;
+    }
+}
 
 // Validasi input
 if (empty($userId) || empty($name) || empty($email)) {
@@ -50,10 +58,33 @@ if ($resultCheck->num_rows > 0) {
     exit;
 }
 
+// Cek kolom signature_data agar backward compatible
+$hasSignatureColumn = false;
+$checkSignatureColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'signature_data'");
+if ($checkSignatureColumn && $checkSignatureColumn->num_rows > 0) {
+    $hasSignatureColumn = true;
+}
+
+if (!$hasSignatureColumn && !empty($signatureData)) {
+    if ($conn->query("ALTER TABLE users ADD COLUMN signature_data LONGTEXT NULL") === true) {
+        $hasSignatureColumn = true;
+    }
+}
+
 // Update data user
-$sql = "UPDATE users SET name = ?, email = ? WHERE id = ?";
+$sql = "UPDATE users SET name = ?, email = ?";
+$withSignature = $hasSignatureColumn && !empty($signatureData);
+if ($withSignature) {
+    $sql .= ", signature_data = ?";
+}
+$sql .= " WHERE id = ?";
+
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("ssi", $name, $email, $userId);
+if ($withSignature) {
+    $stmt->bind_param("sssi", $name, $email, $signatureData, $userId);
+} else {
+    $stmt->bind_param("ssi", $name, $email, $userId);
+}
 
 if ($stmt->execute()) {
     // Ambil data user yang sudah diupdate
