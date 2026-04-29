@@ -3009,47 +3009,25 @@ class _PemanduanPageState extends State<PemanduanPage> {
           downloadsDir = await getApplicationDocumentsDirectory();
         }
 
-        // Create filename
-        final vesselName = (data['vessel_name'] ?? 'Unknown').toString();
+        // Create filename with BKT numbering format.
         final dateStr =
             (data['date'] ?? DateTime.now().toString().split('T')[0])
                 .toString();
 
-        // Format vessel name
-        String formattedVesselName;
-        try {
-          if (vesselName.contains('/')) {
-            final parts = vesselName.split('/');
-            if (parts.length >= 2 && parts[1].isNotEmpty) {
-              formattedVesselName = '${parts[0].trim()}_TK_${parts[1].trim()}';
-            } else {
-              formattedVesselName = vesselName.replaceAll('/', '_');
-            }
-          } else {
-            formattedVesselName = vesselName;
-          }
-        } catch (e) {
-          formattedVesselName = 'Unknown_Vessel';
-        }
-
-        // Format date as DD-MM-YYYY
-        String formattedDate;
+        String yearMonth;
         try {
           final date = DateTime.parse(dateStr);
-          formattedDate =
-              '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+          yearMonth =
+              '${(date.year % 100).toString().padLeft(2, '0')}${date.month.toString().padLeft(2, '0')}';
         } catch (e) {
-          formattedDate = 'Unknown_Date';
+          final now = DateTime.now();
+          yearMonth =
+              '${(now.year % 100).toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}';
         }
-
-        // Clean filename
-        final safeVesselName = formattedVesselName
-            .replaceAll(RegExp(r'[^\w\s-]'), '_')
-            .replaceAll(RegExp(r'\s+'), '_');
 
         final typePrefix = type == 'pandu' ? 'PANDU' : 'TUNDA';
         final fileName =
-            'PI_${typePrefix}_${safeVesselName}_$formattedDate.pdf';
+            'BKT_${typePrefix}_IDBTM_SIS_${yearMonth}_${id.toString().padLeft(5, '0')}.pdf';
 
         final filePath = '${downloadsDir.path}/$fileName';
         final file = File(filePath);

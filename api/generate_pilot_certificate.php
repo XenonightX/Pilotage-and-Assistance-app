@@ -120,7 +120,19 @@ if (!function_exists('buildCertificateNumber')) {
         $timestamp = strtotime($dateValue) ?: time();
         $yearMonth = date('ym', $timestamp);
         $id = isset($data['id']) ? (int) $data['id'] : 0;
-        return 'BKT/IDBTM/SIS/' . $yearMonth . '/' . str_pad((string) max($id, 1), 5, '0', STR_PAD_LEFT);
+        return 'BKT/PANDU/IDBTM/SIS/' . $yearMonth . '/' . str_pad((string) max($id, 1), 5, '0', STR_PAD_LEFT);
+    }
+}
+
+if (!function_exists('buildDownloadFilename2A1')) {
+    function buildDownloadFilename2A1(array $data): string
+    {
+        $dateValue = pickValue($data, ['date', 'created_at'], date('Y-m-d'));
+        $timestamp = strtotime($dateValue) ?: time();
+        $yearMonth = date('ym', $timestamp);
+        $id = isset($data['id']) ? (int) $data['id'] : 0;
+
+        return 'BKT_PANDU_IDBTM_SIS_' . $yearMonth . '_' . str_pad((string) max($id, 1), 5, '0', STR_PAD_LEFT) . '.pdf';
     }
 }
 
@@ -483,26 +495,7 @@ function resolveManagerSignatureProfile_2A1($conn, int $requesterUserId, string 
     if (!hasUserSignatureColumn($conn)) {
         return null;
     }
-    $normalizedRole = strtolower(trim($requesterRole));
-    if ($requesterUserId > 0 && in_array($normalizedRole, ['admin', 'superadmin'], true)) {
-        $sql  = "SELECT id, name, role, signature_data
-                 FROM users
-                 WHERE id = ?
-                 AND LOWER(TRIM(COALESCE(role, ''))) IN ('admin', 'superadmin')
-                 LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        if ($stmt) {
-            $stmt->bind_param("i", $requesterUserId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($result && $result->num_rows > 0) {
-                $row = $result->fetch_assoc();
-                if (textOrEmpty($row['signature_data'] ?? '') !== '') {
-                    return $row;
-                }
-            }
-        }
-    }
+
     $sql    = "SELECT id, name, role, signature_data
                FROM users
                WHERE LOWER(TRIM(COALESCE(role, ''))) IN ('admin', 'superadmin')
@@ -650,10 +643,7 @@ try {
     $description       = pickValue($data, ['description', 'keterangan', 'remarks'], '-');
     $managerProfile    = resolveManagerSignatureProfile_2A1($conn, $requesterUserId, $requesterRole);
 
-    $managerFallbackName = in_array(strtolower($requesterRole), ['admin', 'superadmin'], true) && $requesterName !== ''
-        ? $requesterName
-        : 'MOHAMMAD ADAM';
-    $managerName  = upperOrEmpty($managerProfile['name'] ?? pickValue($data, ['manager_name', 'supervisor_name'], $managerFallbackName));
+    $managerName  = upperOrEmpty('MOHAMMAD ADAM');
     $pilotProfile = resolvePilotSignatureProfile_2A1(
         $conn,
         isset($data['pilot_user_id']) ? (int) $data['pilot_user_id'] : 0,
@@ -759,8 +749,7 @@ try {
     putText($pdf, 10, $noteY + 15.0,'Please note over leaf if any important / incident to be reported', 'helvetica', 'I', 6.4);
 
     // ── Output ────────────────────────────────────────────────────────────────
-    $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', textOrEmpty($data['vessel_name'] ?? 'pilot_certificate'));
-    $filename = "Pilot_Certificate_{$safeName}_" . date('Ymd_His') . ".pdf";
+    $filename = buildDownloadFilename2A1($data);
 
     while (ob_get_level() > 0) {
         ob_end_clean();

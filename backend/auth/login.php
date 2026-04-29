@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 try {
     // Path relatif dari backend/auth/ ke config/
     require_once __DIR__ . "/../config/config.php";
+    require_once __DIR__ . "/password_utils.php";
 
     if (!isset($conn) || $conn->connect_error) {
         throw new Exception("Database connection failed");
@@ -49,8 +50,11 @@ try {
     if ($result->num_rows > 0) {
         $user = $result->fetch_assoc();
 
-        // Perbandingan plaintext (sesuai dengan kode lama Anda)
-        if ($passwordInput === $user['password']) {
+        if (verifyUserPassword($passwordInput, (string) ($user['password'] ?? ''))) {
+            if (shouldUpgradeStoredPassword((string) ($user['password'] ?? ''))) {
+                upgradeUserPasswordHash($conn, (int) $user['id'], $passwordInput);
+            }
+
             ob_end_clean();
             echo json_encode([
                 "status"  => "success",

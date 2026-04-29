@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . "/../config/config.php";
+require_once __DIR__ . "/password_utils.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 $userId = $data["user_id"] ?? 0;
@@ -52,10 +53,8 @@ if ($result->num_rows === 0) {
 
 $user = $result->fetch_assoc();
 
-// Verifikasi password lama
-// CATATAN: Kode ini untuk plaintext password (seperti sistem kamu sekarang)
-// Kalau sudah pakai hash, ganti dengan password_verify()
-if ($oldPassword !== $user['password']) {
+// Verifikasi password lama, kompatibel untuk hash dan data lama plaintext.
+if (!verifyUserPassword($oldPassword, (string) ($user['password'] ?? ''))) {
     echo json_encode([
         "status" => "error", 
         "message" => "Password lama salah"
@@ -72,12 +71,19 @@ if ($oldPassword === $newPassword) {
     exit;
 }
 
-// Update password
-// CATATAN: Ini masih plaintext, sebaiknya pakai password_hash()
-// $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+// Update password sebagai hash.
+$hashedPassword = hashUserPassword($newPassword);
+if ($hashedPassword === false || $hashedPassword === '') {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Gagal memproses password baru"
+    ]);
+    exit;
+}
+
 $sqlUpdate = "UPDATE users SET password = ? WHERE id = ?";
 $stmtUpdate = $conn->prepare($sqlUpdate);
-$stmtUpdate->bind_param("si", $newPassword, $userId);
+$stmtUpdate->bind_param("si", $hashedPassword, $userId);
 
 if ($stmtUpdate->execute()) {
     echo json_encode([

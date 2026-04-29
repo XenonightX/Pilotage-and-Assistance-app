@@ -92,7 +92,19 @@ if (!function_exists('buildCertificateNumber')) {
         $timestamp = strtotime($dateValue) ?: time();
         $yearMonth = date('ym', $timestamp);
         $id = isset($data['id']) ? (int) $data['id'] : 0;
-        return 'BKT/IDBTM/SIS/' . $yearMonth . '/' . str_pad((string) max($id, 1), 5, '0', STR_PAD_LEFT);
+        return 'BKT/TUNDA/IDBTM/SIS/' . $yearMonth . '/' . str_pad((string) max($id, 1), 5, '0', STR_PAD_LEFT);
+    }
+}
+
+if (!function_exists('buildDownloadFilename2A2')) {
+    function buildDownloadFilename2A2(array $data): string
+    {
+        $dateValue = pickValue($data, ['date', 'created_at'], date('Y-m-d'));
+        $timestamp = strtotime($dateValue) ?: time();
+        $yearMonth = date('ym', $timestamp);
+        $id = isset($data['id']) ? (int) $data['id'] : 0;
+
+        return 'BKT_TUNDA_IDBTM_SIS_' . $yearMonth . '_' . str_pad((string) max($id, 1), 5, '0', STR_PAD_LEFT) . '.pdf';
     }
 }
 
@@ -294,26 +306,7 @@ function resolveManagerSignatureProfile_2A2($conn, int $requesterUserId, string 
     if (!hasUserSignatureColumn($conn)) {
         return null;
     }
-    $normalizedRole = strtolower(trim($requesterRole));
-    if ($requesterUserId > 0 && in_array($normalizedRole, ['admin', 'superadmin'], true)) {
-        $sql  = "SELECT id, name, role, signature_data
-                 FROM users
-                 WHERE id = ?
-                 AND LOWER(TRIM(COALESCE(role, ''))) IN ('admin', 'superadmin')
-                 LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        if ($stmt) {
-            $stmt->bind_param("i", $requesterUserId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($result && $result->num_rows > 0) {
-                $row = $result->fetch_assoc();
-                if (textOrEmpty($row['signature_data'] ?? '') !== '') {
-                    return $row;
-                }
-            }
-        }
-    }
+
     $sql    = "SELECT id, name, role, signature_data
                FROM users
                WHERE LOWER(TRIM(COALESCE(role, ''))) IN ('admin', 'superadmin')
@@ -333,6 +326,18 @@ function resolveTugSignatureProfile_2A2($conn, string $tugName): ?array
         return null;
     }
 
+    $normalizeName = static function (string $value): string {
+        $value = textOrEmpty($value);
+        if ($value === '') {
+            return '';
+        }
+
+        $value = preg_replace('/^(?:TB\.?|T\.?\s*B\.?|TUG\s*BOAT|KAPAL\s*TUNDA)\s*/iu', '', $value);
+        $value = is_string($value) ? trim($value, " \t\n\r\0\x0B.-") : '';
+
+        return textOrEmpty($value);
+    };
+
     $sqlFallback = "SELECT id, name, role, signature_data
                     FROM users
                     WHERE LOWER(TRIM(COALESCE(role, ''))) = 'tugboat'
@@ -348,6 +353,13 @@ function resolveTugSignatureProfile_2A2($conn, string $tugName): ?array
         return null;
     }
 
+    $lookupNames = array_values(array_unique(array_filter([
+        $normalizeName($tugName),
+        textOrEmpty($tugName),
+    ], static function ($value) {
+        return $value !== '';
+    })));
+
     $sql  = "SELECT id, name, role, signature_data
              FROM users
              WHERE LOWER(TRIM(COALESCE(name, ''))) = LOWER(TRIM(?))
@@ -357,17 +369,19 @@ function resolveTugSignatureProfile_2A2($conn, string $tugName): ?array
     if (!$stmt) {
         return null;
     }
-    $stmt->bind_param("s", $tugName);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result && $result->num_rows > 0) {
-        return $result->fetch_assoc();
-    }
 
-    $fallbackResult = $conn->query($sqlFallback);
-    if ($fallbackResult && $fallbackResult->num_rows > 0) {
-        return $fallbackResult->fetch_assoc();
+    foreach ($lookupNames as $lookupName) {
+        $stmt->bind_param("s", $lookupName);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $result->num_rows > 0) {
+            $row = $result->fetch_assoc();
+            $stmt->close();
+            return $row;
+        }
     }
+    $stmt->close();
+
     return null;
 }
 
@@ -536,21 +550,37 @@ function drawTugRow_2A2($pdf, float $y, array $tug, string $serviceDate, string 
 
 // FIX: drawQrBlock untuk 2A2 — NAMA/NAME tidak tertimpa QR
 // QR: $y+10 s/d $y+32. Label "NAMA/NAME" di $y+34, garis di $y+40, nama di $y+41.
-function drawQrBlock_2A2($pdf, float $x, float $y, string $titleId, string $titleEn, string $name, string $qrContent): void
+function drawQrBlock_2A2($pdf, float $x, float $y, string $titleId, string $titleEn, string $name, string $qrContent, bool $compact = false): void
 {
     $width = 52;
-
-    // Judul bilingual
-    putText($pdf, $x, $y,      $titleId, 'helvetica', 'B', 8.9, 'C', $width, 4);
-    putText($pdf, $x, $y + 4.5, $titleEn, 'helvetica', 'I', 6.5, 'C', $width, 4);
-
-    // QR code: mulai y+10, tinggi 22 → berakhir y+32
     $style = [
         'border'  => 0,
         'padding' => 0,
         'fgcolor' => [0, 0, 0],
         'bgcolor' => false,
     ];
+
+    if ($compact) {
+        putText($pdf, $x, $y,       $titleId, 'helvetica', 'B', 7.7, 'C', $width, 3.2);
+        putText($pdf, $x, $y + 3.5, $titleEn, 'helvetica', 'I', 5.6, 'C', $width, 3.0);
+
+        $qrSize = 13;
+        $qrX = $x + (($width - $qrSize) / 2);
+        $qrY = $y + 6.7;
+        $pdf->write2DBarcode($qrContent, 'QRCODE,H', $qrX, $qrY, $qrSize, $qrSize, $style, 'N');
+
+        putText($pdf, $x, $y + 20.8, 'NAMA / NAME', 'helvetica', 'B', 6.0, 'C', $width, 3);
+        $lineY = $y + 24.6;
+        drawLine($pdf, $x + 1, $lineY, $x + $width - 1, $lineY, 0.2);
+        putFitText($pdf, $x + 2, $lineY + 0.8, $name, $width - 4, 7.0, '', 'C');
+        return;
+    }
+
+    // Judul bilingual
+    putText($pdf, $x, $y,      $titleId, 'helvetica', 'B', 8.9, 'C', $width, 4);
+    putText($pdf, $x, $y + 4.5, $titleEn, 'helvetica', 'I', 6.5, 'C', $width, 4);
+
+    // QR code: mulai y+10, tinggi 22 → berakhir y+32
     $qrX = $x + 15;
     $qrY = $y + 10;
     $pdf->write2DBarcode($qrContent, 'QRCODE,H', $qrX, $qrY, 22, 22, $style, 'N');
@@ -566,7 +596,7 @@ function drawQrBlock_2A2($pdf, float $x, float $y, string $titleId, string $titl
     putFitText($pdf, $x + 2, $lineY + 1.0, $name, $width - 4, 8.1, '', 'C');
 }
 
-function drawQrRow_2A2($pdf, float $y, array $blocks): void
+function drawQrRow_2A2($pdf, float $y, array $blocks, bool $compact = false): void
 {
     $blocks = array_values($blocks);
     $count = count($blocks);
@@ -590,8 +620,40 @@ function drawQrRow_2A2($pdf, float $y, array $blocks): void
             textOrEmpty($block['title_id'] ?? ''),
             textOrEmpty($block['title_en'] ?? ''),
             textOrEmpty($block['name'] ?? ''),
-            textOrEmpty($block['payload'] ?? '')
+            textOrEmpty($block['payload'] ?? ''),
+            $compact
         );
+    }
+}
+
+function drawQrBlocksSinglePage_2A2($pdf, float $topY, array $blocks): void
+{
+    $blocks = array_values($blocks);
+    $count = count($blocks);
+    if ($count === 0) {
+        return;
+    }
+
+    if ($count <= 3) {
+        drawQrRow_2A2($pdf, $topY, $blocks, false);
+        return;
+    }
+
+    if ($count === 4) {
+        $rows = [
+            array_slice($blocks, 0, 2),
+            array_slice($blocks, 2, 2),
+        ];
+    } else {
+        $rows = [
+            array_slice($blocks, 0, 3),
+            array_slice($blocks, 3, 2),
+        ];
+    }
+
+    $rowGap = 33.0;
+    foreach ($rows as $rowIndex => $rowBlocks) {
+        drawQrRow_2A2($pdf, $topY + ($rowIndex * $rowGap), $rowBlocks, true);
     }
 }
 
@@ -627,6 +689,101 @@ function drawQrContinuationPages_2A2($pdf, array $blocks, string $certificateNum
             drawQrRow_2A2($pdf, $startY + ($rowIndex * $rowGap), $rowBlocks);
         }
     }
+}
+
+function renderAssistanceCertificatePage_2A2(
+    $pdf,
+    array $data,
+    string $certificateNumber,
+    string $requestNumber,
+    string $description,
+    array $assistTug,
+    string $serviceDate,
+    string $startTime,
+    string $endDate,
+    string $endTime,
+    string $duration,
+    string $managerName,
+    string $managerQrPayload,
+    string $tugMasterName,
+    string $tugMasterQrPayload,
+    string $masterAgentName,
+    string $masterAgentQrPayload
+): void
+{
+    $pdf->AddPage();
+
+    $pdf->SetDrawColor(35, 35, 35);
+    $pdf->SetTextColor(18, 18, 18);
+    $pdf->Rect(5, 5, 200, 287);
+
+    $logoPath = __DIR__ . '/../backend/assets/NO-BG-LOGO-SIS.png';
+    if (file_exists($logoPath)) {
+        $pdf->Image($logoPath, 11, 12, 30, 18, 'PNG', '', '', true, 300, '', false, false, 0);
+    }
+
+    putText($pdf, 42, 14,   'BUKTI PEMAKAIAN JASA TUNDA',   'helvetica', 'B', 12,  'C', 125, 5);
+    putText($pdf, 42, 20.2, 'TUG BOAT CERTIFICATE',         'helvetica', '',  10,  'C', 125, 4);
+    putText($pdf, 42, 25.8, 'Nomor : ' . $certificateNumber, 'helvetica', '', 8.7, 'C', 125, 4);
+    drawLine($pdf, 10, 38, 200, 38, 0.35);
+
+    $leftX = 10;
+    $rightX = 104;
+    $rowY = 46;
+    $gap = 10.3;
+
+    drawFieldRow_2A2($pdf, $leftX,  $rowY + ($gap * 0), 'Nama Kapal',     'Vessel Name',       upperOrEmpty($data['vessel_name'] ?? ''), 28, 64, 8.9);
+    drawFieldRow_2A2($pdf, $leftX,  $rowY + ($gap * 1), 'Nama Nakhoda',   'Ship Master',       upperOrEmpty($data['master_name'] ?? ''), 28, 64, 8.9);
+    drawFieldRow_2A2($pdf, $leftX,  $rowY + ($gap * 2), 'Bendera',        'Flag',              upperOrEmpty($data['flag'] ?? ''), 28, 64, 8.9);
+    drawFieldRow_2A2($pdf, $leftX,  $rowY + ($gap * 3), 'Datang Dari',    'Last Port Of Call', upperOrEmpty($data['last_port'] ?? ''), 28, 64, 8.5);
+    drawFieldRow_2A2($pdf, $leftX,  $rowY + ($gap * 4), 'Isi Kotor',      'G.R.T',             appendUnit($data['gross_tonnage'] ?? '', 'Ton'), 28, 64, 8.6);
+    drawFieldRow_2A2($pdf, $leftX,  $rowY + ($gap * 5), 'Panjang',        'L.O.A',             appendUnit($data['loa'] ?? '', 'm'), 28, 64, 8.6);
+
+    drawFieldRow_2A2($pdf, $rightX, $rowY + ($gap * 0), 'Panggilan',      'Call Sign',         upperOrEmpty($data['call_sign'] ?? ''), 28, 64, 8.9);
+    drawFieldRow_2A2($pdf, $rightX, $rowY + ($gap * 1), 'Keagenan Kapal', 'Agency',            upperOrEmpty($data['agency'] ?? ''), 28, 64, 8.2);
+    drawFieldRow_2A2($pdf, $rightX, $rowY + ($gap * 2), 'Keterangan',     'Description',       upperOrEmpty($description), 28, 64, 8.2);
+    drawFieldRow_2A2($pdf, $rightX, $rowY + ($gap * 3), 'Tujuan Ke',      'Next Port Of Call', upperOrEmpty($data['next_port'] ?? ''), 28, 64, 8.5);
+    drawFieldRow_2A2($pdf, $rightX, $rowY + ($gap * 4), 'Sarat Muka',     'Fore Draft',        appendUnit($data['fore_draft'] ?? '', 'm'), 28, 64, 8.6);
+    drawFieldRow_2A2($pdf, $rightX, $rowY + ($gap * 5), 'Sarat Belakang', 'Rear Draft',        appendUnit($data['aft_draft'] ?? '', 'm'), 28, 64, 8.6);
+
+    $statementY = 108;
+    putFitText($pdf, 10, $statementY, 'MENERANGKAN BAHWA SESUAI DENGAN PERMOHONAN PELAYANAN JASA TUNDA NO : ' . $requestNumber, 190, 9.1, 'B');
+    drawFieldRow_2A2($pdf, 10,  $statementY + 7.2, 'Dari', 'From', upperOrEmpty($data['from_where'] ?? ''), 14, 63, 8.7);
+    drawFieldRow_2A2($pdf, 104, $statementY + 7.2, 'Ke',   'To',   upperOrEmpty($data['to_where']   ?? ''), 10, 64, 8.7);
+
+    $tugSectionY = 130;
+    putText($pdf, 10, $tugSectionY,      'IA TELAH MENGGUNAKAN KAPAL TUNDA', 'helvetica', 'B', 9.4);
+    putText($pdf, 10, $tugSectionY + 4.4,'SHE DULY USED THE TUG BOAT',       'helvetica', 'I', 6.8);
+
+    drawTugRow_2A2($pdf, 140, $assistTug, $serviceDate, $startTime, $endDate, $endTime, $duration);
+
+    drawQrRow_2A2($pdf, 212, [
+        [
+            'title_id' => 'MANAGER PEMANDUAN',
+            'title_en' => 'PILOT MANAGER',
+            'name'     => $managerName,
+            'payload'  => $managerQrPayload,
+        ],
+        [
+            'title_id' => 'NAHKODA KAPAL TUNDA',
+            'title_en' => 'TUG BOAT MASTER',
+            'name'     => $tugMasterName,
+            'payload'  => $tugMasterQrPayload,
+        ],
+        [
+            'title_id' => 'MASTER/ AGENT',
+            'title_en' => 'NAKHODA / AGEN',
+            'name'     => $masterAgentName,
+            'payload'  => $masterAgentQrPayload,
+        ],
+    ], false);
+
+    $footerNoteY = 283;
+    drawLine($pdf, 10, $footerNoteY - 2.5, 200, $footerNoteY - 2.5, 0.22);
+    putText($pdf, 10, $footerNoteY,      'CATATAN',  'helvetica', 'B', 7.2);
+    putText($pdf, 10, $footerNoteY + 3.4,'NOTE :',   'helvetica', 'B', 7.0);
+    putText($pdf, 27, $footerNoteY,      'Jam kerja Tug Boat dihitung selama pemakaian efektif ditambah waktu perjalanan dari dan ke pangkalan (______ Menit)', 'helvetica', '', 6.2);
+    putText($pdf, 27, $footerNoteY + 4.0,'The work time of tug boat is the effective use plus the time for moving and the base again.', 'helvetica', 'I', 5.9);
 }
 
 // ─── MAIN ────────────────────────────────────────────────────────────────────
@@ -693,14 +850,7 @@ try {
     }
 
     $managerProfile      = resolveManagerSignatureProfile_2A2($conn, $requesterUserId, $requesterRole);
-    $managerFallbackName = pickValue($data, ['manager_name', 'supervisor_name'], '');
-    if ($managerFallbackName === '' && in_array(strtolower(trim($requesterRole)), ['admin', 'superadmin'], true)) {
-        $managerFallbackName = $requesterName;
-    }
-    if ($managerFallbackName === '') {
-        $managerFallbackName = textOrEmpty($managerProfile['name'] ?? 'PT. SNEPAC INDO SERVICE');
-    }
-    $managerName = upperOrEmpty($managerFallbackName);
+    $managerName = upperOrEmpty('MOHAMMAD ADAM');
 
     $masterAgentName = upperOrEmpty($data['master_name'] ?? '');
     if ($masterAgentName === '') {
@@ -716,23 +866,68 @@ try {
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
     $pdf->SetAutoPageBreak(false);
-    $pdf->AddPage();
 
-    $pdf->SetDrawColor(35, 35, 35);
-    $pdf->SetTextColor(18, 18, 18);
-    $pdf->Rect(5, 5, 200, 287);
+    $managerQrPayload = buildProfileQrPayload(
+        $managerProfile,
+        $managerName,
+        textOrEmpty($managerProfile['role'] ?? ($requesterRole !== '' ? $requesterRole : 'admin')),
+        '2A2',
+        $assistanceId,
+        'MANAGER'
+    );
+    $masterAgentQrPayload = buildActivityQrPayload(
+        $masterAgentName,
+        '2A2',
+        $assistanceId,
+        'MASTER_AGENT',
+        $signatureBase64
+    );
+
+    foreach ($displayAssistTugs as $index => $assistTug) {
+        $slot = 'TUG_MASTER_' . ($index + 1);
+        $tugMasterProfile = resolveTugSignatureProfile_2A2($conn, textOrEmpty($assistTug['name'] ?? ''));
+        $tugMasterName = upperOrEmpty($assistTug['name'] ?? '');
+        if ($tugMasterName === '') {
+            $tugMasterName = upperOrEmpty($tugMasterProfile['name'] ?? 'TUG BOAT MASTER');
+        }
+
+        $tugMasterQrPayload = buildProfileQrPayload(
+            $tugMasterProfile,
+            $tugMasterName,
+            textOrEmpty($tugMasterProfile['role'] ?? 'tugboat'),
+            '2A2',
+            $assistanceId,
+            $slot
+        );
+
+        renderAssistanceCertificatePage_2A2(
+            $pdf,
+            $data,
+            $certificateNumber,
+            $requestNumber,
+            $description,
+            $assistTug,
+            $serviceDate,
+            $startTime,
+            $endDate,
+            $endTime,
+            $duration,
+            $managerName,
+            $managerQrPayload,
+            $tugMasterName,
+            $tugMasterQrPayload,
+            $masterAgentName,
+            $masterAgentQrPayload
+        );
+    }
+
+    goto output_assistance_certificate_2A2;
 
     // ── Logo & header ─────────────────────────────────────────────────────────
     $logoPath = __DIR__ . '/../backend/assets/NO-BG-LOGO-SIS.png';
     if (file_exists($logoPath)) {
         $pdf->Image($logoPath, 11, 12, 30, 18, 'PNG', '', '', true, 300, '', false, false, 0);
     }
-
-    $pdf->SetTextColor(24, 112, 196);
-    putText($pdf, 163, 14, 'PELINDO', 'helvetica', 'B', 13);
-    $pdf->SetTextColor(245, 90, 60);
-    putText($pdf, 166.5, 20.5, 'SOLUSI DIGITAL', 'helvetica', 'B', 5.8);
-    $pdf->SetTextColor(18, 18, 18);
 
     putText($pdf, 42, 14,   'BUKTI PEMAKAIAN JASA TUNDA', 'helvetica', 'B', 12,  'C', 125, 5);
     putText($pdf, 42, 20.2, 'TUG BOAT CERTIFICATE',        'helvetica', '',  10,  'C', 125, 4);
@@ -821,28 +1016,36 @@ try {
         ];
     }
 
-    $primaryTugApprovalBlock = $tugApprovalBlocks[0] ?? [
-        'title_id' => 'NAHKODA KAPAL TUNDA',
-        'title_en' => 'TUG BOAT MASTER',
-        'name'     => 'TUG BOAT MASTER',
-        'payload'  => buildProfileQrPayload(null, 'TUG BOAT MASTER', 'tugboat', '2A2', $assistanceId, 'TUG_MASTER_1'),
-    ];
+    if (empty($tugApprovalBlocks)) {
+        $tugApprovalBlocks[] = [
+            'title_id' => 'NAHKODA KAPAL TUNDA',
+            'title_en' => 'TUG BOAT MASTER',
+            'name'     => 'TUG BOAT MASTER',
+            'payload'  => buildProfileQrPayload(null, 'TUG BOAT MASTER', 'tugboat', '2A2', $assistanceId, 'TUG_MASTER_1'),
+        ];
+    }
 
-    drawQrRow_2A2($pdf, $qrTopY, [
+    $approvalBlocks = array_merge(
         [
-            'title_id' => 'MANAGER PEMANDUAN',
-            'title_en' => 'PILOT MANAGER',
-            'name'     => $managerName,
-            'payload'  => $managerQrPayload,
+            [
+                'title_id' => 'MANAGER PEMANDUAN',
+                'title_en' => 'PILOT MANAGER',
+                'name'     => $managerName,
+                'payload'  => $managerQrPayload,
+            ],
         ],
-        $primaryTugApprovalBlock,
+        $tugApprovalBlocks,
         [
-            'title_id' => 'MASTER/ AGENT',
-            'title_en' => 'NAKHODA / AGEN',
-            'name'     => $masterAgentName,
-            'payload'  => $masterAgentQrPayload,
-        ],
-    ]);
+            [
+                'title_id' => 'MASTER/ AGENT',
+                'title_en' => 'NAKHODA / AGEN',
+                'name'     => $masterAgentName,
+                'payload'  => $masterAgentQrPayload,
+            ],
+        ]
+    );
+
+    drawQrBlocksSinglePage_2A2($pdf, $qrTopY, $approvalBlocks);
 
     $footerNoteY = 283;
     drawLine($pdf, 10, $footerNoteY - 2.5, 200, $footerNoteY - 2.5, 0.22);
@@ -851,21 +1054,11 @@ try {
     putText($pdf, 27, $footerNoteY,      'Jam kerja Tug Boat dihitung selama pemakaian efektif ditambah waktu perjalanan dari dan ke pangkalan (______ Menit)', 'helvetica', '', 6.2);
     putText($pdf, 27, $footerNoteY + 4.0,'The work time of tug boat is the effective use plus the time for moving and the base again.', 'helvetica', 'I', 5.9);
 
-    $overflowQrBlocks = array_slice($tugApprovalBlocks, 1);
-    if (!empty($overflowQrBlocks)) {
-        drawQrContinuationPages_2A2(
-            $pdf,
-            $overflowQrBlocks,
-            $certificateNumber,
-            textOrEmpty($data['vessel_name'] ?? '')
-        );
-    }
-
     // ── Footer note ───────────────────────────────────────────────────────────
 
     // ── Output ────────────────────────────────────────────────────────────────
-    $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', textOrEmpty($data['vessel_name'] ?? 'assistance_certificate'));
-    $filename = "Assistance_Certificate_{$safeName}_" . date('Ymd_His') . ".pdf";
+    output_assistance_certificate_2A2:
+    $filename = buildDownloadFilename2A2($data);
 
     while (ob_get_level() > 0) {
         ob_end_clean();

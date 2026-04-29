@@ -16,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 require_once __DIR__ . "/../config/config.php";
+require_once __DIR__ . "/password_utils.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 $name = trim($data["name"] ?? '');
@@ -75,9 +76,16 @@ if ($result->num_rows > 0) {
 // PENTING: Gunakan password_hash untuk keamanan (opsional tapi sangat disarankan)
 // $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
+$hashedPassword = hashUserPassword($password);
+if ($hashedPassword === false || $hashedPassword === '') {
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => "Gagal memproses password"]);
+    exit;
+}
+
 $sql = "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("ssss", $name, $email, $password, $role);
+$stmt->bind_param("ssss", $name, $email, $hashedPassword, $role);
 
 if ($stmt->execute()) {
     echo json_encode([

@@ -127,11 +127,26 @@ function parseDelimitedValues($value): array
     }));
 }
 
+function normalizeTugName($value): string
+{
+    $text = textOrEmpty($value);
+    if ($text === '') {
+        return '';
+    }
+
+    $normalized = preg_replace('/^(?:TB\.?|T\.?\s*B\.?|TUG\s*BOAT|KAPAL\s*TUNDA)\s*/iu', '', $text);
+    if (!is_string($normalized)) {
+        return '';
+    }
+
+    return textOrEmpty(trim($normalized, " \t\n\r\0\x0B.-"));
+}
+
 function getAssistTugNames(array $data): array
 {
     $names = [];
     for ($i = 1; $i <= 3; $i++) {
-        $name = pickValue($data, ['assist_tug_name_' . $i]);
+        $name = normalizeTugName(pickValue($data, ['assist_tug_name_' . $i]));
         if ($name !== '') {
             $names[] = $name;
         }
@@ -139,7 +154,11 @@ function getAssistTugNames(array $data): array
     if (!empty($names)) {
         return array_values(array_unique($names));
     }
-    return parseDelimitedValues(pickValue($data, ['assist_tug_name']));
+
+    $parsed = array_map('normalizeTugName', parseDelimitedValues(pickValue($data, ['assist_tug_name'])));
+    return array_values(array_filter($parsed, static function ($item) {
+        return $item !== '';
+    }));
 }
 
 function getAssistTugNameByIndex(array $data, int $index): string
@@ -344,16 +363,10 @@ function resolveSignatureViewData(mysqli $conn, string $documentType, string $sl
     $tableHasSignature = hasTableColumn($conn, $table, 'signature');
 
     if ($documentType === '2A1' && $slot === 'MANAGER') {
-        $candidateName = pickValue($data, ['manager_name', 'supervisor_name']);
-        $profile = $candidateName !== ''
-            ? fetchUserByNameAndRoles($conn, $candidateName, ['admin', 'superadmin'], true)
-            : null;
-        if (!$profile) {
-            $profile = fetchFirstUserByRoles($conn, ['admin', 'superadmin'], true);
-        }
+        $profile = fetchFirstUserByRoles($conn, ['admin', 'superadmin'], true);
 
         return [
-            'display_name' => upperOrEmpty($profile['name'] ?? ($candidateName !== '' ? $candidateName : 'PT. SNEPAC INDO SERVICE')),
+            'display_name' => upperOrEmpty('MOHAMMAD ADAM'),
             'display_role' => upperOrEmpty($profile['role'] ?? 'admin'),
             'signature'    => normalizeSignatureDataUrl($profile['signature_data'] ?? ''),
             'kind'         => 'profile',
@@ -391,16 +404,10 @@ function resolveSignatureViewData(mysqli $conn, string $documentType, string $sl
     }
 
     if ($documentType === '2A2' && $slot === 'MANAGER') {
-        $candidateName = pickValue($data, ['manager_name', 'supervisor_name']);
-        $profile = $candidateName !== ''
-            ? fetchUserByNameAndRoles($conn, $candidateName, ['admin', 'superadmin'], true)
-            : null;
-        if (!$profile) {
-            $profile = fetchFirstUserByRoles($conn, ['admin', 'superadmin'], true);
-        }
+        $profile = fetchFirstUserByRoles($conn, ['admin', 'superadmin'], true);
 
         return [
-            'display_name' => upperOrEmpty($profile['name'] ?? ($candidateName !== '' ? $candidateName : 'PT. SNEPAC INDO SERVICE')),
+            'display_name' => upperOrEmpty('MOHAMMAD ADAM'),
             'display_role' => upperOrEmpty($profile['role'] ?? 'admin'),
             'signature'    => normalizeSignatureDataUrl($profile['signature_data'] ?? ''),
             'kind'         => 'profile',
@@ -412,7 +419,7 @@ function resolveSignatureViewData(mysqli $conn, string $documentType, string $sl
         $profile = $tugName !== ''
             ? fetchUserByNameAndRoles($conn, $tugName, ['tugboat'], false)
             : null;
-        if (!$profile) {
+        if (!$profile && $tugName === '') {
             $profile = fetchFirstUserByRoles($conn, ['tugboat'], true);
         }
 
