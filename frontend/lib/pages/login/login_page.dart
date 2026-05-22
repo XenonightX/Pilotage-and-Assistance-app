@@ -1,10 +1,8 @@
-import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:pilotage_and_assistance_app/widgets/navbar/navbar.dart';
-import 'package:pilotage_and_assistance_app/utils/user_session.dart';
+import 'package:pilotage_and_assistance_app/services/firebase_auth_service.dart';
 import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
+import 'package:pilotage_and_assistance_app/widgets/navbar/navbar.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,14 +14,14 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _userController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
+  final FirebaseAuthService _authService = FirebaseAuthService();
 
   bool _isObscure = true;
   bool _isLoading = false;
 
-  // ✅ Fungsi Login dengan SharedPreferences
   Future<void> _login() async {
-    String email = _userController.text.trim();
-    String password = _passController.text.trim();
+    final email = _userController.text.trim();
+    final password = _passController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -35,70 +33,30 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.post(
-        Uri.parse(
-          'http://192.168.0.9/pilotage_and_assistance_app/backend/auth/login.php',
-          // 'http://192.168.1.15/pilotage_and_assistance_app/backend/auth/login.php',
-        ),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"email": email, "password": password}),
+      await _authService.signIn(email: email, password: password);
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const ResponsiveNavBarPage()),
       );
-
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-
-        if (result['status'] == 'success' && result['data'] != null) {
-          final userData = result['data'];
-
-          // ✅ 1. Simpan ke UserSession (untuk akses cepat di memory)
-          UserSession.setUser(
-            id: userData['id'],
-            name: userData['name'],
-            email: userData['email'],
-            role: userData['role'],
-          );
-
-          // ✅ 2. Simpan ke SharedPreferences (untuk persistent storage)
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setInt('userId', userData['id']);
-          await prefs.setString('userName', userData['name']);
-          await prefs.setString('userEmail', userData['email']);
-          await prefs.setString('userRole', userData['role']);
-          await prefs.setBool('isLoggedIn', true);
-
-          print('✅ Data berhasil disimpan:');
-          print('User ID: ${userData['id']}');
-          print('Name: ${userData['name']}');
-          print('Email: ${userData['email']}');
-          print('Role: ${userData['role']}');
-
-          // ✅ Navigasi ke halaman utama
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ResponsiveNavBarPage(),
-              ),
-            );
-          }
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'] ?? "Login gagal")),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Server error: ${response.statusCode}")),
-        );
-      }
+    } on FirebaseAuthException catch (e) {
+      final message = switch (e.code) {
+        'user-not-found' => 'Email tidak ditemukan.',
+        'wrong-password' ||
+        'invalid-credential' => 'Email atau password salah.',
+        'network-request-failed' => 'Tidak ada koneksi jaringan untuk login.',
+        _ => e.message ?? 'Login gagal.',
+      };
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
-      print('Error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal terhubung ke server: $e")),
-      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Login gagal: $e")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -119,7 +77,6 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   Image.asset('assets/images/LOGO-SIS.png', height: 150),
                   const SizedBox(height: 20),
-
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -136,14 +93,14 @@ class _LoginPageState extends State<LoginPage> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 15),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                      ),
                       filled: true,
                       fillColor: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -160,8 +117,9 @@ class _LoginPageState extends State<LoginPage> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 15),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                      ),
                       filled: true,
                       fillColor: Colors.white,
                       suffixIcon: GestureDetector(
@@ -172,8 +130,10 @@ class _LoginPageState extends State<LoginPage> {
                           duration: const Duration(milliseconds: 300),
                           transitionBuilder: (child, animation) {
                             return RotationTransition(
-                              turns: Tween<double>(begin: 0.75, end: 1)
-                                  .animate(animation),
+                              turns: Tween<double>(
+                                begin: 0.75,
+                                end: 1,
+                              ).animate(animation),
                               child: FadeTransition(
                                 opacity: animation,
                                 child: child,
@@ -191,7 +151,6 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   SizedBox(
                     width: double.infinity,
                     height: 45,
@@ -214,8 +173,10 @@ class _LoginPageState extends State<LoginPage> {
                             )
                           : const Text(
                               "Masuk",
-                              style:
-                                  TextStyle(fontSize: 18, color: Colors.white),
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.white,
+                              ),
                             ),
                     ),
                   ),

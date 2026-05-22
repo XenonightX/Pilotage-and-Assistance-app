@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pilotage_and_assistance_app/pages/profile/edit_profile_page.dart';
-import 'package:pilotage_and_assistance_app/pages/superadmin/add_user_page.dart';
 import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -38,7 +37,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Check if user is admin
   bool get _isAdmin => _userRole.toLowerCase() == 'admin';
-  bool get _isSuperadmin => _userRole.toLowerCase() == 'superadmin';
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +69,12 @@ class _ProfilePageState extends State<ProfilePage> {
                               // Avatar
                               CircleAvatar(
                                 radius: 60,
-                                backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+                                backgroundColor: const Color.fromRGBO(
+                                  0,
+                                  40,
+                                  120,
+                                  1,
+                                ),
                                 child: Text(
                                   _userName.isNotEmpty
                                       ? _userName[0].toUpperCase()
@@ -171,10 +174,11 @@ class _ProfilePageState extends State<ProfilePage> {
                                     final result = await Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => const EditProfilePage(),
+                                        builder: (context) =>
+                                            const EditProfilePage(),
                                       ),
                                     );
-                                    
+
                                     if (result == true) {
                                       _loadUserData();
                                     }
@@ -193,41 +197,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 10), 
-                              if (_isSuperadmin) ...[
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 50,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () async {
-                                      final result = await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const AddUserPage(),
-                                        ),
-                                      );
-
-                                      if (result == true) {
-                                        _loadUserData();
-                                      }
-                                    },
-                                    icon: const Icon(Icons.person_add_alt_1),
-                                    label: const Text(
-                                      'Tambah User',
-                                      style: TextStyle(fontSize: 16),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF00897B),
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                              ],
                             ],
                           ),
                         ),
@@ -255,7 +224,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: SafeArea(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
                         child: Row(
                           children: [
                             IconButton(
@@ -284,20 +256,22 @@ class _ProfilePageState extends State<ProfilePage> {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _isAdmin ? Colors.red[100] : Colors.blue[100],
+                                  color: _isAdmin
+                                      ? Colors.red[100]
+                                      : Colors.blue[100],
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      _isAdmin 
-                                        ? Icons.admin_panel_settings 
-                                        : Icons.person,
+                                      _isAdmin
+                                          ? Icons.admin_panel_settings
+                                          : Icons.person,
                                       size: 16,
-                                      color: _isAdmin 
-                                        ? Colors.red[700] 
-                                        : Colors.blue[700],
+                                      color: _isAdmin
+                                          ? Colors.red[700]
+                                          : Colors.blue[700],
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
@@ -305,9 +279,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                        color: _isAdmin 
-                                          ? Colors.red[700] 
-                                          : Colors.blue[700],
+                                        color: _isAdmin
+                                            ? Colors.red[700]
+                                            : Colors.blue[700],
                                       ),
                                     ),
                                   ],
@@ -371,10 +345,7 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 4),
                 Text(

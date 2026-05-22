@@ -1,15 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:open_file/open_file.dart';
 import 'package:signature/signature.dart';
 import 'package:pilotage_and_assistance_app/pages/pemanduan/tambah_pemanduan_page.dart';
+import 'package:pilotage_and_assistance_app/services/firestore_data_service.dart';
+import 'package:pilotage_and_assistance_app/utils/pdf_generator.dart';
+import 'package:pilotage_and_assistance_app/utils/user_session.dart';
 import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
@@ -41,6 +40,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
   // Temporary storage for signature per ID (used for PDF generation - NOT SAVED TO DATABASE)
   final Map<String, String> _pendingSignatures = {};
 
+  final FirestoreDataService _dataService = FirestoreDataService();
+  StreamSubscription<List<Map<String, dynamic>>>? _pilotagesSub;
+  StreamSubscription<Map<String, String>>? _statsSub;
+  List<Map<String, dynamic>> _allPemanduanList = [];
   List<Map<String, dynamic>> _pemanduanList = [];
   bool _isLoading = true;
 
@@ -60,9 +63,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
   // User role
   String _userRole = '';
 
-  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
-  // final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
-
   @override
   void initState() {
     super.initState();
@@ -72,20 +72,57 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   @override
   void dispose() {
+    _pilotagesSub?.cancel();
+    _statsSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   // Load user role from SharedPreferences
   Future<void> _loadUserRole() async {
+    await UserSession.loadUser();
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userRole = prefs.getString('user_role') ?? '';
+      _userRole = UserSession.userRole ?? prefs.getString('userRole') ?? '';
     });
   }
 
-  // Check if user is admin
-  bool get _isAdmin => _userRole.toLowerCase() == 'admin';
+  bool get _isAdmin {
+    final role = _userRole.toLowerCase();
+    return role == 'admin' || role == 'superadmin';
+  }
+
+  String _activityDocId(Map<String, dynamic> data) {
+    for (final key in ['_doc_id', 'doc_id', 'document_id']) {
+      final value = data[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty && value != '-') return value;
+    }
+    return data['id']?.toString().trim() ?? '';
+  }
+
+  String _activityDisplayId(Map<String, dynamic> data) {
+    for (final key in [
+      'activity_no',
+      'document_no',
+      'pilot_certificate_no',
+      'certificate_no',
+      'doc_no',
+      'id',
+    ]) {
+      final value = data[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty && value != '-') return value;
+    }
+    return '-';
+  }
+
+  List<String> _activitySignatureKeys(Object id, Map<String, dynamic> data) {
+    final keys = <String>{id.toString()};
+    final docId = _activityDocId(data);
+    final displayId = _activityDisplayId(data);
+    if (docId.isNotEmpty) keys.add(docId);
+    if (displayId.isNotEmpty && displayId != '-') keys.add(displayId);
+    return keys.toList();
+  }
 
   Future<void> _loadData() async {
     await Future.wait([_fetchPilotages(), _fetchStats()]);
@@ -93,113 +130,95 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   Future<void> _fetchPilotages() async {
     setState(() => _isLoading = true);
+    await _pilotagesSub?.cancel();
 
-    try {
-      final queryParams = {
-        'status': _selectedFilter != 'Semua' ? _selectedFilter : '',
-        'search': _searchController.text,
-        'page': _currentPage.toString(),
-        'limit': _rowsPerPage.toString(),
-      };
-
-      if (_selectedDateRange != null) {
-        queryParams['start_date'] =
-            '${_selectedDateRange!.start.year}-${_selectedDateRange!.start.month.toString().padLeft(2, '0')}-${_selectedDateRange!.start.day.toString().padLeft(2, '0')}';
-        queryParams['end_date'] =
-            '${_selectedDateRange!.end.year}-${_selectedDateRange!.end.month.toString().padLeft(2, '0')}-${_selectedDateRange!.end.day.toString().padLeft(2, '0')}';
-      }
-
-      final uri = Uri.parse(
-        '$baseUrl/get_pilotages.php',
-      ).replace(queryParameters: queryParams);
-
-      final response = await http.get(uri);
-
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-
-        if (result['status'] == 'success') {
-          setState(() {
-            _pemanduanList = List<Map<String, dynamic>>.from(
-              result['data'] ?? [],
-            );
-            _totalData = result['total'] ?? 0;
-            _totalPages = _totalData > 0
-                ? ((_totalData / _rowsPerPage).ceil())
-                : 1;
-            _isLoading = false;
-          });
-        } else {
-          throw Exception(result['message'] ?? 'Failed to load data');
-        }
-      } else {
-        throw Exception('Server error: ${response.statusCode}');
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memuat data: $e')));
-      }
+    String? startDate;
+    String? endDate;
+    if (_selectedDateRange != null) {
+      startDate = _formatDateForQuery(_selectedDateRange!.start);
+      endDate = _formatDateForQuery(_selectedDateRange!.end);
     }
+
+    _pilotagesSub = _dataService
+        .watchActivityLogs(
+          status: _selectedFilter != 'Semua' ? _selectedFilter : '',
+          search: _searchController.text,
+          startDate: startDate,
+          endDate: endDate,
+          limit: 1000,
+        )
+        .listen(
+          (rows) {
+            if (!mounted) return;
+            setState(() {
+              _allPemanduanList = rows;
+              _totalData = rows.length;
+              _totalPages = _totalData > 0
+                  ? ((_totalData / _rowsPerPage).ceil())
+                  : 1;
+              if (_currentPage > _totalPages) {
+                _currentPage = _totalPages;
+              }
+              _applyPagination();
+              _isLoading = false;
+            });
+          },
+          onError: (e) {
+            if (!mounted) return;
+            setState(() => _isLoading = false);
+            if (mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Gagal memuat data: $e')));
+            }
+          },
+        );
   }
 
   Future<void> _fetchStats() async {
-    try {
-      // Get today's date in YYYY-MM-DD format
-      final today = DateTime.now();
-      final todayStr =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final todayStr = _formatDateForQuery(DateTime.now());
+    await _statsSub?.cancel();
+    _statsSub = _dataService
+        .watchActivityStatsForDate(todayStr)
+        .listen(
+          (data) {
+            if (!mounted) return;
+            setState(() => _stats = data);
+          },
+          onError: (_) {
+            if (!mounted) return;
+            setState(() {
+              _stats = {
+                'total': '0',
+                'active': '0',
+                'completed': '0',
+                'scheduled': '0',
+              };
+            });
+          },
+        );
+  }
 
-      final response = await http.get(
-        Uri.parse(
-          '$baseUrl/get_pilotages_stats.php',
-        ).replace(queryParameters: {'date': todayStr}),
-      );
+  String _formatDateForQuery(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
 
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-
-        if (result['status'] == 'success') {
-          final data = result['data'];
-
-          setState(() {
-            _stats = {
-              'total': (data['total'] ?? 0).toString(),
-              'active': (data['active'] ?? 0).toString(),
-              'completed': (data['completed'] ?? 0).toString(),
-              'scheduled': (data['scheduled'] ?? 0).toString(),
-            };
-          });
-        } else {
-          setState(() {
-            _stats = {
-              'total': '0',
-              'active': '0',
-              'completed': '0',
-              'scheduled': '0',
-            };
-          });
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _stats = {
-          'total': '0',
-          'active': '0',
-          'completed': '0',
-          'scheduled': '0',
-        };
-      });
-    }
+  void _applyPagination() {
+    final start = (_currentPage - 1) * _rowsPerPage;
+    final end = (start + _rowsPerPage) > _allPemanduanList.length
+        ? _allPemanduanList.length
+        : start + _rowsPerPage;
+    _pemanduanList = start >= _allPemanduanList.length
+        ? []
+        : _allPemanduanList.sublist(start, end);
   }
 
   void _goToPage(int page) {
     if (page >= 1 && page <= _totalPages) {
-      setState(() => _currentPage = page);
-      _fetchPilotages();
+      setState(() {
+        _currentPage = page;
+        _applyPagination();
+      });
     }
   }
 
@@ -208,8 +227,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
       setState(() {
         _rowsPerPage = newRowsPerPage;
         _currentPage = 1;
+        _totalPages = _totalData > 0 ? ((_totalData / _rowsPerPage).ceil()) : 1;
+        _applyPagination();
       });
-      _fetchPilotages();
     }
   }
 
@@ -442,28 +462,25 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   Future<void> _updatePilotages(Map<String, dynamic> data) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/update_pilotages.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data),
-      );
+      final docId = _activityDocId(data);
+      if (docId.isEmpty) {
+        throw Exception('ID dokumen tidak ditemukan');
+      }
 
-      final result = jsonDecode(response.body);
+      final payload = Map<String, dynamic>.from(data)
+        ..remove('_doc_id')
+        ..remove('doc_id')
+        ..remove('_has_pending_writes');
 
-      if (result['status'] == 'success') {
-        await Future.delayed(const Duration(milliseconds: 500));
-        await _loadData();
+      await _dataService.updateActivityLog(docId, payload);
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Data berhasil diupdate!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        throw Exception(result['message']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data berhasil diupdate!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -477,28 +494,17 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  Future<void> _deletePilotages(int id) async {
+  Future<void> _deletePilotages(Object id) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/delete_pilotages.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"id": id}),
-      );
+      await _dataService.deleteActivityLog(id.toString());
 
-      final result = jsonDecode(response.body);
-
-      if (result['status'] == 'success') {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Data berhasil dihapus!'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        _loadData();
-      } else {
-        throw Exception(result['message']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data berhasil dihapus!'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -886,78 +892,68 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 ],
               ),
               child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back,
-                          color: Color.fromRGBO(12, 10, 80, 1),
-                          size: 28,
-                        ),
-                        onPressed: () => Navigator.pop(context),
+                child: LayoutBuilder(
+                  builder: (context, outerConstraints) {
+                    final isNarrow = outerConstraints.maxWidth < 390;
+
+                    return Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isNarrow ? 12 : 20,
+                        vertical: 8,
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        "Pemanduan & Penundaan",
-                        style: TextStyle(
-                          color: Color.fromRGBO(12, 10, 80, 1),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                        ),
-                      ),
-                      const Spacer(),
-                      // Show role badge
-                      if (_userRole.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _isAdmin
-                                ? Colors.red[100]
-                                : Colors.blue[100],
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final showRoleText = constraints.maxWidth >= 430;
+                          final iconBox = isNarrow ? 40.0 : 48.0;
+
+                          return Row(
                             children: [
-                              Icon(
-                                _isAdmin
-                                    ? Icons.admin_panel_settings
-                                    : Icons.person,
-                                size: 16,
-                                color: _isAdmin
-                                    ? Colors.red[700]
-                                    : Colors.blue[700],
+                              IconButton(
+                                constraints: BoxConstraints.tightFor(
+                                  width: iconBox,
+                                  height: 48,
+                                ),
+                                icon: const Icon(
+                                  Icons.arrow_back,
+                                  color: Color.fromRGBO(12, 10, 80, 1),
+                                  size: 28,
+                                ),
+                                onPressed: () => Navigator.pop(context),
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                _userRole,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: _isAdmin
-                                      ? Colors.red[700]
-                                      : Colors.blue[700],
+                              SizedBox(width: isNarrow ? 2 : 4),
+                              Expanded(
+                                child: Text(
+                                  "Pemanduan & Penundaan",
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: const Color.fromRGBO(12, 10, 80, 1),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: isNarrow ? 18 : 20,
+                                  ),
                                 ),
                               ),
+                              if (_userRole.isNotEmpty) ...[
+                                SizedBox(width: isNarrow ? 4 : 8),
+                                _buildRoleBadge(showText: showRoleText),
+                              ],
+                              SizedBox(width: isNarrow ? 2 : 4),
+                              IconButton(
+                                constraints: BoxConstraints.tightFor(
+                                  width: iconBox,
+                                  height: 48,
+                                ),
+                                icon: const Icon(Icons.refresh),
+                                onPressed: _loadData,
+                                tooltip: 'Refresh',
+                                visualDensity: VisualDensity.compact,
+                              ),
                             ],
-                          ),
-                        ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        icon: const Icon(Icons.refresh),
-                        onPressed: _loadData,
-                        tooltip: 'Refresh',
+                          );
+                        },
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -967,6 +963,40 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
+  Widget _buildRoleBadge({required bool showText}) {
+    final color = _isAdmin ? Colors.red : Colors.blue;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: showText ? 10 : 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color[100],
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _isAdmin ? Icons.admin_panel_settings : Icons.person,
+            size: 16,
+            color: color[700],
+          ),
+          if (showText) ...[
+            const SizedBox(width: 4),
+            Text(
+              _userRole,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: color[700],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _buildStatCard(
     String title,
@@ -1035,10 +1065,14 @@ class _PemanduanPageState extends State<PemanduanPage> {
     );
   }
 
-  String _formatDate(String? date) {
-    if (date == null || date.isEmpty) return '-';
+  String _formatDate(dynamic date) {
+    if (date == null) return '-';
     try {
-      final dt = DateTime.parse(date);
+      final dt = date is Timestamp
+          ? date.toDate()
+          : date is DateTime
+          ? date
+          : DateTime.parse(date.toString());
       final months = [
         'Jan',
         'Feb',
@@ -1055,26 +1089,61 @@ class _PemanduanPageState extends State<PemanduanPage> {
       ];
       return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (e) {
-      return date;
+      return date.toString();
     }
   }
 
-  String _formatTimeOnly(String? dateTime) {
-    if (dateTime == null || dateTime.isEmpty) return '-';
+  String _formatTimeOnly(dynamic dateTime) {
+    if (dateTime == null) return '-';
     try {
-      final dt = DateTime.parse(dateTime);
+      final dt = dateTime is Timestamp
+          ? dateTime.toDate()
+          : dateTime is DateTime
+          ? dateTime
+          : DateTime.parse(dateTime.toString());
       final hh = dt.hour.toString().padLeft(2, '0');
       final mm = dt.minute.toString().padLeft(2, '0');
       return '$hh:$mm';
     } catch (e) {
       // Jika parsing gagal, coba extract HH:MM dari string
       final timePattern = RegExp(r'(\d{2}):(\d{2})');
-      final match = timePattern.firstMatch(dateTime);
+      final match = timePattern.firstMatch(dateTime.toString());
       if (match != null) {
         return '${match.group(1)}:${match.group(2)}';
       }
       return '-';
     }
+  }
+
+  String? _toIsoDateString(dynamic value) {
+    if (value == null) return null;
+    final dt = value is Timestamp
+        ? value.toDate()
+        : value is DateTime
+        ? value
+        : DateTime.tryParse(value.toString());
+    if (dt == null) {
+      final text = value.toString().trim();
+      return text.isEmpty ? null : text;
+    }
+    return _formatDateForQuery(dt);
+  }
+
+  String? _toIsoDateTimeString(dynamic value, {String? fallbackDate}) {
+    if (value == null) return null;
+    final dt = value is Timestamp
+        ? value.toDate()
+        : value is DateTime
+        ? value
+        : DateTime.tryParse(value.toString());
+    if (dt != null) return dt.toIso8601String();
+
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    if (RegExp(r'^\d{2}:\d{2}$').hasMatch(text) && fallbackDate != null) {
+      return '${fallbackDate}T$text:00';
+    }
+    return text;
   }
 
   String _formatMultipleValues(String value) {
@@ -1227,7 +1296,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
           rows: _pemanduanList.map((data) {
             return DataRow(
               cells: [
-                DataCell(Text(data['id']?.toString() ?? '-')),
+                DataCell(Text(_activityDisplayId(data))),
                 DataCell(Text(data['vessel_name'] ?? '-')),
                 DataCell(Text(data['call_sign'] ?? '-')),
                 DataCell(Text(data['master_name'] ?? '-')),
@@ -1330,7 +1399,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           ),
                           onPressed: () => _showPdfGenerationDialog(
                             context,
-                            data['id'],
+                            _activityDocId(data),
                             data,
                           ),
                           tooltip: 'Generate PDF',
@@ -1344,8 +1413,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
                             color: Colors.red,
                             size: 20,
                           ),
-                          onPressed: () =>
-                              _showDeleteConfirmation(context, data['id']),
+                          onPressed: () => _showDeleteConfirmation(
+                            context,
+                            _activityDocId(data),
+                          ),
                           tooltip: 'Hapus',
                         ),
                       ] else
@@ -1393,7 +1464,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'ID: ${data['id']}',
+                    'ID: ${_activityDisplayId(data)}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -1505,12 +1576,16 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 children: [
                   Icon(Icons.swap_horiz, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
-                  Text(
-                    '${data['from_where'] ?? '-'} → ${data['to_where'] ?? '-'}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      '${data['from_where'] ?? '-'} → ${data['to_where'] ?? '-'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -1523,6 +1598,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   Expanded(
                     child: Text(
                       '${data['last_port'] ?? '-'} → ${data['next_port'] ?? '-'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                     ),
                   ),
@@ -1540,48 +1617,107 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // Tombol PDF untuk kegiatan yang sudah Selesai
-                  if (data['status'] == 'Selesai') ...[
-                    TextButton.icon(
-                      onPressed: () =>
-                          _showPdfGenerationDialog(context, data['id'], data),
-                      icon: const Icon(Icons.picture_as_pdf, size: 18),
-                      label: const Text('PDF'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.green,
-                      ),
-                    ),
-                  ],
-                  TextButton.icon(
-                    onPressed: () => _showDetailDialog(context, data),
-                    icon: const Icon(Icons.visibility, size: 18),
-                    label: const Text('Detail'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.blue),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _showEditDialog(context, data),
-                    icon: const Icon(Icons.edit, size: 18),
-                    label: const Text('Edit'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                  ),
-                  // Tombol Delete hanya untuk Admin
-                  if (_isAdmin)
-                    TextButton.icon(
-                      onPressed: () =>
-                          _showDeleteConfirmation(context, data['id']),
-                      icon: const Icon(Icons.delete, size: 18),
-                      label: const Text('Hapus'),
-                      style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    ),
-                ],
-              ),
+              _buildCardActions(context, data),
             ],
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildCardActions(BuildContext context, Map<String, dynamic> data) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 360;
+
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: compact ? 6 : 4,
+            runSpacing: 6,
+            children: [
+              if (data['status'] == 'Selesai')
+                _buildCardActionButton(
+                  onPressed: () => _showPdfGenerationDialog(
+                    context,
+                    _activityDocId(data),
+                    data,
+                  ),
+                  icon: Icons.picture_as_pdf,
+                  label: 'PDF',
+                  color: Colors.green,
+                  compact: compact,
+                ),
+              _buildCardActionButton(
+                onPressed: () => _showDetailDialog(context, data),
+                icon: Icons.visibility,
+                label: 'Detail',
+                color: Colors.blue,
+                compact: compact,
+              ),
+              _buildCardActionButton(
+                onPressed: () => _showEditDialog(context, data),
+                icon: Icons.edit,
+                label: 'Edit',
+                color: Colors.orange,
+                compact: compact,
+              ),
+              if (_isAdmin)
+                _buildCardActionButton(
+                  onPressed: () =>
+                      _showDeleteConfirmation(context, _activityDocId(data)),
+                  icon: Icons.delete,
+                  label: 'Hapus',
+                  color: Colors.red,
+                  compact: compact,
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCardActionButton({
+    required VoidCallback onPressed,
+    required IconData icon,
+    required String label,
+    required Color color,
+    bool compact = false,
+  }) {
+    if (compact) {
+      return SizedBox(
+        width: 40,
+        height: 40,
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 20),
+          color: color,
+          tooltip: label,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          visualDensity: VisualDensity.compact,
+        ),
+      );
+    }
+
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13),
+      ),
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        minimumSize: const Size(0, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 
@@ -1622,7 +1758,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Detail Pemanduan ID: ${data['id']}'),
+        title: Text('Detail Pemanduan ID: ${_activityDisplayId(data)}'),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1894,7 +2030,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
               horizontal: 16,
               vertical: 24,
             ),
-            title: Text('Edit Pemanduan ID: ${data['id']}'),
+            title: Text('Edit Pemanduan ID: ${_activityDisplayId(data)}'),
             content: Container(
               width: double.maxFinite,
               child: SingleChildScrollView(
@@ -2692,7 +2828,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
                   // Prepare update data
                   final updateData = {
-                    'id': data['id'],
+                    '_doc_id': _activityDocId(data),
+                    'id': _activityDisplayId(data),
                     'vessel_name': vesselName,
                     'call_sign': callSignController.text.trim(),
                     'master_name': masterController.text.trim(),
@@ -2718,6 +2855,18 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         .map((tug) => tug['bollard_pull'])
                         .join(','),
                   };
+                  for (final key in [
+                    'activity_no',
+                    'document_no',
+                    'pilot_certificate_no',
+                    'tug_certificate_no',
+                    'sequence_no',
+                    'sequence_year_month',
+                  ]) {
+                    if (data[key] != null) {
+                      updateData[key] = data[key];
+                    }
+                  }
 
                   // Always include time fields to prevent null values
                   updateData['pilot_on_board'] = data['pilot_on_board'];
@@ -2753,22 +2902,27 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   // SIMPAN SIGNATURE KE STATE (TEMPORARY)
                   // TIDAK DISIMPAN KE DATABASE!
                   // ==============================================
-                  if ((selectedStatus == 'Aktif' || selectedStatus == 'Selesai') &&
+                  if ((selectedStatus == 'Aktif' ||
+                          selectedStatus == 'Selesai') &&
                       signatureController.isNotEmpty) {
-                    final signatureBytes = await signatureController.toPngBytes();
+                    final signatureBytes = await signatureController
+                        .toPngBytes();
                     if (signatureBytes != null) {
-                      final signatureId = '${data['id']}';
+                      final signatureId = _activityDocId(data);
+                      final displayId = _activityDisplayId(data);
                       final signatureBase64 = base64Encode(signatureBytes);
-                      final signatureDataUrl = 'data:image/png;base64,$signatureBase64';
+                      final signatureDataUrl =
+                          'data:image/png;base64,$signatureBase64';
 
                       setState(() {
                         // Simpan temporary per ID untuk PDF generation
                         _pendingSignatures[signatureId] = signatureBase64;
+                        _pendingSignatures[displayId] = signatureBase64;
                       });
 
                       // Kirim juga saat update agar bisa disimpan permanen (jika kolom tersedia)
                       updateData['signature'] = signatureDataUrl;
-                      
+
                       // Tampilkan notifikasi
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -2800,7 +2954,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   void _showPdfGenerationDialog(
     BuildContext context,
-    int id,
+    Object id,
     Map<String, dynamic> data,
   ) {
     showDialog(
@@ -2862,13 +3016,14 @@ class _PemanduanPageState extends State<PemanduanPage> {
   }
 
   Future<void> _generatePdf(
-    int id,
+    Object id,
     String type,
     Map<String, dynamic> data,
   ) async {
+    var dialogOpen = false;
     try {
-      // Show loading dialog
       if (mounted) {
+        dialogOpen = true;
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -2878,46 +3033,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
         );
       }
 
-      // Request storage permission
-      Permission permission = Permission.storage;
-      if (Platform.isAndroid) {
-        final androidInfo = await DeviceInfoPlugin().androidInfo;
-        if (androidInfo.version.sdkInt >= 30) {
-          permission = Permission.manageExternalStorage;
-        }
-      }
-
-      var status = await permission.request();
-      if (!status.isGranted) {
-        // Close loading dialog
-        if (mounted) Navigator.pop(context);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'Izin penyimpanan diperlukan untuk mengunduh PDF',
-              ),
-              backgroundColor: Colors.orange,
-              action: SnackBarAction(
-                label: 'Pengaturan',
-                textColor: Colors.white,
-                onPressed: () async {
-                  await openAppSettings();
-                },
-              ),
-            ),
-          );
-        }
-        return;
-      }
-
-      // ==============================================
-      // CHECK APAKAH ADA PENDING SIGNATURE UNTUK ID INI
-      // ==============================================
       String? signatureToSend;
-      final signatureKey = '$id';
-      signatureToSend = _pendingSignatures[signatureKey];
+      final signatureKeys = _activitySignatureKeys(id, data);
+      for (final key in signatureKeys) {
+        signatureToSend = _pendingSignatures[key];
+        if (signatureToSend != null) break;
+      }
       if (signatureToSend == null && _pendingSignatures.length == 1) {
         signatureToSend = _pendingSignatures.values.first;
       }
@@ -2929,182 +3050,99 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
       String? signaturePayload;
       if (signatureToSend != null && signatureToSend.trim().isNotEmpty) {
-        if (signatureToSend.startsWith('data:image')) {
-          signaturePayload = signatureToSend;
-        } else {
-          signaturePayload = 'data:image/png;base64,$signatureToSend';
-        }
-      }
-      if (signatureToSend != null) {
-        print('📝 Signature found for ID $id - akan dikirim ke backend');
-      } else {
-        print('ℹ️ No signature found for ID $id');
+        signaturePayload = signatureToSend.startsWith('data:image')
+            ? signatureToSend
+            : 'data:image/png;base64,$signatureToSend';
       }
 
-      // Prepare URL
-      final url = type == 'pandu'
-          ? '$baseUrl/generate_pilot_certificate.php'
-          : '$baseUrl/generate_assistance_certificate.php';
+      final pdfData = Map<String, dynamic>.from(data);
+      pdfData['doc_id'] = id.toString();
+      pdfData['id'] = _activityDisplayId(data);
+      pdfData['form_type'] = type;
 
-      print('Requesting PDF from: $url');
+      final dateText = _toIsoDateString(data['date']);
+      if (dateText != null) {
+        pdfData['date'] = dateText;
+      }
 
-      final prefs = await SharedPreferences.getInstance();
-      final requesterUserId = prefs.getInt('userId') ?? 0;
-      final requesterName = prefs.getString('userName') ?? '';
-      final requesterRole = prefs.getString('userRole') ?? '';
-
-      // ==============================================
-      // KIRIM SIGNATURE VIA POST (BUKAN GET!)
-      // ==============================================
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'id': id,
-          'signature': signaturePayload,
-          'requester_user_id': requesterUserId,
-          'requester_name': requesterName,
-          'requester_role': requesterRole,
-        }),
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Request timeout - server tidak merespon');
-        },
-      );
-
-      // Close loading dialog
-      if (mounted) Navigator.pop(context);
-
-      print('Response status: ${response.statusCode}');
-      print('Response length: ${response.bodyBytes.length}');
-
-      if (response.statusCode == 200) {
-        // Check if response is actually a PDF
-        if (response.bodyBytes.isEmpty) {
-          throw Exception('Server mengembalikan file kosong');
-        }
-
-        // Check if response contains error message
-        final contentType = response.headers['content-type'] ?? '';
-        if (contentType.contains('text/html') ||
-            contentType.contains('application/json')) {
-          // Server returned an error page instead of PDF
-          final errorMessage = String.fromCharCodes(response.bodyBytes);
-          print('Server error: $errorMessage');
-          throw Exception(
-            'Server error: Format response tidak valid (bukan PDF)',
-          );
-        }
-
-        // Get downloads directory
-        Directory? downloadsDir;
-        if (Platform.isAndroid) {
-          downloadsDir = Directory('/storage/emulated/0/Download');
-          // Check if Download folder exists, if not create it
-          if (!await downloadsDir.exists()) {
-            await downloadsDir.create(recursive: true);
-          }
-        } else {
-          downloadsDir = await getApplicationDocumentsDirectory();
-        }
-
-        // Create filename with BKT numbering format.
-        final dateStr =
-            (data['date'] ?? DateTime.now().toString().split('T')[0])
-                .toString();
-
-        String yearMonth;
-        try {
-          final date = DateTime.parse(dateStr);
-          yearMonth =
-              '${(date.year % 100).toString().padLeft(2, '0')}${date.month.toString().padLeft(2, '0')}';
-        } catch (e) {
-          final now = DateTime.now();
-          yearMonth =
-              '${(now.year % 100).toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}';
-        }
-
-        final typePrefix = type == 'pandu' ? 'PANDU' : 'TUNDA';
-        final fileName =
-            'BKT_${typePrefix}_IDBTM_SIS_${yearMonth}_${id.toString().padLeft(5, '0')}.pdf';
-
-        final filePath = '${downloadsDir.path}/$fileName';
-        final file = File(filePath);
-
-        // Write file
-        await file.writeAsBytes(response.bodyBytes);
-
-        print('PDF saved to: $filePath');
-
-        // ==============================================
-        // HAPUS PENDING SIGNATURE SETELAH BERHASIL
-        // ==============================================
-        if (signatureToSend != null) {
-          setState(() {
-            _pendingSignatures.remove(signatureKey);
-          });
-          
-          print('✅ Signature cleared from memory after successful PDF generation');
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '✅ PDF berhasil diunduh:\n$fileName' +
-                (signatureToSend != null ? '\n✍️ Dengan tanda tangan' : '')
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 5),
-              action: SnackBarAction(
-                label: 'Buka',
-                textColor: Colors.white,
-                onPressed: () async {
-                  try {
-                    final result = await OpenFile.open(filePath);
-                    if (result.type != ResultType.done) {
-                      throw Exception(result.message);
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Tidak dapat membuka PDF: $e'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                    }
-                  }
-                },
-              ),
-            ),
-          );
-        }
-      } else {
-        throw Exception(
-          'Server error: ${response.statusCode}\n${response.body}',
+      for (final field in [
+        'pilot_on_board',
+        'vessel_start',
+        'pilot_finished',
+        'pilot_get_off',
+      ]) {
+        final normalized = _toIsoDateTimeString(
+          data[field],
+          fallbackDate: dateText,
         );
-      }
-    } catch (e) {
-      // Close loading dialog if still open
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.pop(context);
+        if (normalized != null) {
+          pdfData[field] = normalized;
+        }
       }
 
-      print('PDF Generation Error: $e');
+      if (signaturePayload != null) {
+        pdfData['signature'] = signaturePayload;
+      }
 
+      final file = await PdfGenerator.generatePemanduanPdf(pdfData);
+
+      if (mounted && dialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogOpen = false;
+      }
+
+      if (file == null) {
+        throw Exception('Gagal menyimpan PDF. Periksa izin penyimpanan.');
+      }
+
+      if (signatureToSend != null) {
+        setState(() {
+          for (final key in signatureKeys) {
+            _pendingSignatures.remove(key);
+          }
+        });
+      }
+
+      final fileName = file.path.split(RegExp(r'[\\/]')).last;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Gagal generate PDF:\n$e\n\n'
-              'Troubleshooting:\n'
-              '1. Pastikan server berjalan dan dapat diakses\n'
-              '2. Cek IP address di baseUrl ($baseUrl)\n'
-              '3. Pastikan perangkat terhubung ke jaringan yang sama\n'
-              '4. Cek log server untuk detail error',
+              'PDF berhasil dibuat:\n$fileName'
+              '${signatureToSend != null ? '\nDengan tanda tangan' : ''}',
             ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Buka',
+              textColor: Colors.white,
+              onPressed: () async {
+                try {
+                  await PdfGenerator.openPdf(file);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Tidak dapat membuka PDF: $e'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted && dialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal generate PDF:\n$e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 8),
           ),
@@ -3113,7 +3151,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  void _showDeleteConfirmation(BuildContext context, int id) {
+  void _showDeleteConfirmation(BuildContext context, Object id) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

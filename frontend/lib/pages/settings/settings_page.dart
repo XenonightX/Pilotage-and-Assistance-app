@@ -24,7 +24,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadUserRole() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userRole = prefs.getString('user_role') ?? '';
+      _userRole = prefs.getString('userRole') ?? '';
     });
   }
 
@@ -89,7 +89,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       const SizedBox(height: 16),
                       SwitchListTile(
                         title: const Text("Mode Gelap"),
-                        subtitle: const Text("Aktifkan tema gelap untuk aplikasi"),
+                        subtitle: const Text(
+                          "Aktifkan tema gelap untuk aplikasi",
+                        ),
                         value: _darkMode,
                         onChanged: (value) {
                           setState(() {
@@ -149,7 +151,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       const SizedBox(height: 16),
                       SwitchListTile(
                         title: const Text("Aktifkan Notifikasi"),
-                        subtitle: const Text("Terima pemberitahuan dari aplikasi"),
+                        subtitle: const Text(
+                          "Terima pemberitahuan dari aplikasi",
+                        ),
                         value: _notificationsEnabled,
                         onChanged: (value) {
                           setState(() {
@@ -251,7 +255,10 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       IconButton(
@@ -280,20 +287,22 @@ class _SettingsPageState extends State<SettingsPage> {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: _isAdmin ? Colors.red[100] : Colors.blue[100],
+                            color: _isAdmin
+                                ? Colors.red[100]
+                                : Colors.blue[100],
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                _isAdmin 
-                                  ? Icons.admin_panel_settings 
-                                  : Icons.person,
+                                _isAdmin
+                                    ? Icons.admin_panel_settings
+                                    : Icons.person,
                                 size: 16,
-                                color: _isAdmin 
-                                  ? Colors.red[700] 
-                                  : Colors.blue[700],
+                                color: _isAdmin
+                                    ? Colors.red[700]
+                                    : Colors.blue[700],
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -301,9 +310,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: _isAdmin 
-                                    ? Colors.red[700] 
-                                    : Colors.blue[700],
+                                  color: _isAdmin
+                                      ? Colors.red[700]
+                                      : Colors.blue[700],
                                 ),
                               ),
                             ],

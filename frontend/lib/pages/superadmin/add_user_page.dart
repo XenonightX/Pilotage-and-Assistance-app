@@ -1,7 +1,7 @@
-import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pilotage_and_assistance_app/services/firebase_auth_service.dart';
+import 'package:pilotage_and_assistance_app/utils/user_session.dart';
 import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class AddUserPage extends StatefulWidget {
@@ -16,13 +16,10 @@ class _AddUserPageState extends State<AddUserPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-
-  final String _registerUrl =
-      'http://192.168.0.9/pilotage_and_assistance_app/backend/auth/register.php';
+  final FirebaseAuthService _authService = FirebaseAuthService();
 
   String _selectedRole = 'pilot';
   String _currentUserRole = '';
-  int _requesterUserId = 0;
   bool _isLoading = false;
   bool _isPasswordObscure = true;
 
@@ -43,14 +40,12 @@ class _AddUserPageState extends State<AddUserPage> {
   }
 
   Future<void> _loadCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final role = (prefs.getString('userRole') ?? '').trim();
-    final userId = prefs.getInt('userId') ?? 0;
+    await UserSession.loadUser();
+    final role = (UserSession.userRole ?? '').trim();
 
     if (!mounted) return;
     setState(() {
       _currentUserRole = role;
-      _requesterUserId = userId;
     });
 
     if (!_isSuperadmin) {
@@ -67,10 +62,12 @@ class _AddUserPageState extends State<AddUserPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (!_isSuperadmin || _requesterUserId <= 0) {
+    if (!_isSuperadmin) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Akses ditolak. Hanya superadmin yang dapat menambah user.'),
+          content: Text(
+            'Akses ditolak. Hanya superadmin yang dapat menambah user.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -80,32 +77,29 @@ class _AddUserPageState extends State<AddUserPage> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.post(
-        Uri.parse(_registerUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name': _nameController.text.trim(),
-          'email': _emailController.text.trim(),
-          'password': _passwordController.text,
-          'role': _selectedRole,
-          'requester_user_id': _requesterUserId,
-        }),
+      await _authService.createUserAsSuperadmin(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        role: _selectedRole,
       );
 
-      final result = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && result['status'] == 'success') {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('User baru berhasil ditambahkan'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, true);
-      } else {
-        throw Exception(result['message'] ?? 'Gagal menambahkan user');
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User baru berhasil ditambahkan'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context, true);
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Gagal menambahkan user Firebase'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -239,9 +233,18 @@ class _AddUserPageState extends State<AddUserPage> {
                           prefixIcon: Icon(Icons.badge),
                         ),
                         items: const [
-                          DropdownMenuItem(value: 'pilot', child: Text('Pilot')),
-                          DropdownMenuItem(value: 'tugboat', child: Text('Tugboat')),
-                          DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                          DropdownMenuItem(
+                            value: 'pilot',
+                            child: Text('Pilot'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'tugboat',
+                            child: Text('Tugboat'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'admin',
+                            child: Text('Admin'),
+                          ),
                           DropdownMenuItem(
                             value: 'superadmin',
                             child: Text('Superadmin'),
@@ -262,8 +265,9 @@ class _AddUserPageState extends State<AddUserPage> {
                                   ? null
                                   : () => Navigator.pop(context),
                               style: OutlinedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 side: const BorderSide(
                                   color: Color.fromRGBO(0, 40, 120, 1),
                                 ),
@@ -283,8 +287,9 @@ class _AddUserPageState extends State<AddUserPage> {
                                   1,
                                 ),
                                 foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                               ),
                               child: _isLoading
                                   ? const SizedBox(
@@ -324,8 +329,10 @@ class _AddUserPageState extends State<AddUserPage> {
               ),
               child: SafeArea(
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       IconButton(

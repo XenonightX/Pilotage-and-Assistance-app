@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import 'package:pilotage_and_assistance_app/services/firestore_data_service.dart';
 import 'package:pilotage_and_assistance_app/utils/user_session.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
@@ -53,8 +52,10 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   String vesselType = 'Motor'; // Motor atau Tug & Tongkang
   bool _isLoading = false;
   bool _isLoadingPilots = false;
+  final FirestoreDataService _dataService = FirestoreDataService();
   List<Map<String, dynamic>> _pilotOptions = [];
   int? _selectedPilotUserId;
+  String? _selectedPilotUid;
   String? _selectedPilotName;
 
   // Assist Tug variables - now supports multiple tugs
@@ -63,15 +64,13 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
   // Predefined assist tug options
   late List<Map<String, String>> assistTugOptions;
 
-  final String baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
-  // final String baseUrl = 'http://192.168.1.15/pilotage_and_assistance_app/api';
-
   @override
   void initState() {
     super.initState();
     if (UserSession.isPilot()) {
       pilotController.text = UserSession.userName ?? '';
       _selectedPilotUserId = UserSession.userId;
+      _selectedPilotUid = UserSession.userUid;
       _selectedPilotName = UserSession.userName;
     } else if (UserSession.isAdmin() || UserSession.isSuperadmin()) {
       _fetchPilotOptions();
@@ -123,31 +122,27 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
     setState(() => _isLoadingPilots = true);
 
     try {
-      final response = await http.get(Uri.parse('$baseUrl/get_pilot_users.php'));
-      final result = jsonDecode(response.body);
-
-      if (response.statusCode != 200 || result['status'] != 'success') {
-        throw Exception(result['message'] ?? 'Gagal memuat daftar pandu');
-      }
-
-      final List<dynamic> data = result['data'] ?? [];
-      final pilotOptions = data
-          .map((item) {
-            final map = item as Map<String, dynamic>;
-            final id = int.tryParse('${map['id'] ?? ''}');
-            final name = (map['name'] ?? '').toString().trim();
-            if (id == null || id <= 0 || name.isEmpty) {
-              return null;
-            }
-            return <String, dynamic>{'id': id, 'name': name};
-          })
-          .whereType<Map<String, dynamic>>()
-          .toList()
-        ..sort(
-          (a, b) => ('${a['name']}')
-              .toLowerCase()
-              .compareTo(('${b['name']}').toLowerCase()),
-        );
+      final data = await _dataService.watchPilotUsers().first;
+      final pilotOptions =
+          data
+              .map((item) {
+                final id =
+                    int.tryParse('${item['legacy_id'] ?? ''}') ??
+                    item['id'].toString().hashCode.abs();
+                final uid = (item['id'] ?? '').toString();
+                final name = (item['name'] ?? '').toString().trim();
+                if (id <= 0 || uid.isEmpty || name.isEmpty) {
+                  return null;
+                }
+                return <String, dynamic>{'id': id, 'uid': uid, 'name': name};
+              })
+              .whereType<Map<String, dynamic>>()
+              .toList()
+            ..sort(
+              (a, b) => ('${a['name']}').toLowerCase().compareTo(
+                ('${b['name']}').toLowerCase(),
+              ),
+            );
 
       if (!mounted) return;
       setState(() {
@@ -156,6 +151,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
           final selectedPilot = _findPilotOptionById(_selectedPilotUserId);
           if (selectedPilot != null) {
             _selectedPilotName = selectedPilot['name'] as String;
+            _selectedPilotUid = selectedPilot['uid'] as String?;
             pilotController.text = _selectedPilotName ?? '';
           }
         }
@@ -287,6 +283,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
             ? null
             : aftdraftController.text,
         "pilot_user_id": _selectedPilotUserId,
+        "pilot_uid": _selectedPilotUid,
         "pilot_name": pilotController.text,
         "from_where": fromWhere,
         "to_where": toWhere,
@@ -306,43 +303,18 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         "status": "Terjadwal",
       };
 
-      // ====== DEBUGGING: Print data yang akan dikirim ======
-      print('========== DATA YANG DIKIRIM KE API ==========');
-      print(jsonEncode(data));
-      print('==============================================');
+      await _dataService.addActivityLog(data);
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/add_pilotages.php'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data),
-      );
-
-      // ====== DEBUGGING: Print response dari server ======
-      print('========== RESPONSE DARI SERVER ==========');
-      print('Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-      print('==========================================');
-
-      final result = jsonDecode(response.body);
-
-      if (result['status'] == 'success') {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Data berhasil ditambahkan!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pop(context, true);
-        }
-      } else {
-        throw Exception(result['message']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data berhasil ditambahkan!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true);
       }
     } catch (e) {
-      print('========== ERROR ==========');
-      print(e);
-      print('===========================');
-
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -1016,11 +988,17 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
                         onChanged: _isLoadingPilots || _pilotOptions.isEmpty
                             ? null
                             : (value) {
-                                final selectedPilot = _findPilotOptionById(value);
+                                final selectedPilot = _findPilotOptionById(
+                                  value,
+                                );
                                 setState(() {
                                   _selectedPilotUserId = value;
-                                  _selectedPilotName = selectedPilot?['name'] as String?;
-                                  pilotController.text = _selectedPilotName ?? '';
+                                  _selectedPilotName =
+                                      selectedPilot?['name'] as String?;
+                                  _selectedPilotUid =
+                                      selectedPilot?['uid'] as String?;
+                                  pilotController.text =
+                                      _selectedPilotName ?? '';
                                 });
                               },
                         validator: (value) {

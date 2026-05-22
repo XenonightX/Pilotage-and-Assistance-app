@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class UserSession {
   static int? userId;
+  static String? userUid;
   static String? userName;
   static String? userEmail;
   static String? userRole;
@@ -13,6 +14,7 @@ class UserSession {
   // ✅ Set user data ke memory dan SharedPreferences
   static Future<void> setUser({
     required int id,
+    String? uid,
     required String name,
     required String email,
     required String role,
@@ -23,6 +25,7 @@ class UserSession {
 
     // Set ke memory
     userId = id;
+    userUid = uid?.trim();
     userName = normalizedName;
     userEmail = normalizedEmail;
     userRole = normalizedRole;
@@ -30,6 +33,9 @@ class UserSession {
     // Set ke SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('userId', id);
+    if (userUid != null && userUid!.isNotEmpty) {
+      await prefs.setString('userUid', userUid!);
+    }
     await prefs.setString('userName', normalizedName);
     await prefs.setString('userEmail', normalizedEmail);
     await prefs.setString('userRole', normalizedRole);
@@ -39,17 +45,18 @@ class UserSession {
   // ✅ Load user data dari SharedPreferences ke memory
   static Future<bool> loadUser() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-    
+
     if (isLoggedIn) {
       userId = prefs.getInt('userId');
+      userUid = prefs.getString('userUid')?.trim();
       userName = prefs.getString('userName')?.trim();
       userEmail = prefs.getString('userEmail')?.trim();
       userRole = prefs.getString('userRole')?.trim();
       return true;
     }
-    
+
     return false;
   }
 
@@ -57,6 +64,7 @@ class UserSession {
   static Future<void> clear() async {
     // Clear memory
     userId = null;
+    userUid = null;
     userName = null;
     userEmail = null;
     userRole = null;
@@ -77,11 +85,11 @@ class UserSession {
   static bool isAdmin() {
     return _normalizedRole() == 'admin';
   }
-  
+
   static bool isTugboat() {
     return _normalizedRole() == 'tugboat';
   }
-  
+
   static bool isSuperadmin() {
     return _normalizedRole() == 'superadmin';
   }

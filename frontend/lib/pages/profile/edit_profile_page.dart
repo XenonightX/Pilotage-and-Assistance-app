@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import 'package:signature/signature.dart';
+import 'package:pilotage_and_assistance_app/services/firebase_auth_service.dart';
 import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
 class EditProfilePage extends StatefulWidget {
@@ -21,8 +21,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     penColor: Colors.black,
     exportBackgroundColor: Colors.transparent,
   );
-  
-  int _userId = 0;
+  final FirebaseAuthService _authService = FirebaseAuthService();
+
   String _userRole = '';
   bool _isLoading = true;
   bool _isSaving = false;
@@ -37,7 +37,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = prefs.getInt('userId') ?? 0;
       _userRole = prefs.getString('userRole') ?? '';
       _nameController.text = prefs.getString('userName') ?? '';
       _emailController.text = prefs.getString('userEmail') ?? '';
@@ -66,61 +65,30 @@ class _EditProfilePageState extends State<EditProfilePage> {
         }
       }
 
-      final response = await http.post(
-        Uri.parse(
-            'http://192.168.0.9/pilotage_and_assistance_app/backend/auth/update_profile.php'),
-            // 'http://192.168.1.15/pilotage_and_assistance_app/backend/auth/update_profile.php'),
-
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "user_id": _userId,
-          "name": _nameController.text.trim(),
-          "email": _emailController.text.trim(),
-          if (signatureDataUrl != null) "signature_data": signatureDataUrl,
-        }),
+      await _authService.updateCurrentUserProfile(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        signatureData: signatureDataUrl,
       );
 
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userName', _nameController.text.trim());
+      await prefs.setString('userEmail', _emailController.text.trim());
 
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-
-        if (result['status'] == 'success') {
-          // Update SharedPreferences
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('userName', _nameController.text.trim());
-          await prefs.setString('userEmail', _emailController.text.trim());
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Profile berhasil diupdate!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-            Navigator.pop(context, true);
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(result['message'] ?? 'Update gagal')),
-            );
-          }
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Server error: ${response.statusCode}')),
-          );
-        }
-      }
-    } catch (e) {
-      print('Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal terhubung ke server: $e')),
+          const SnackBar(
+            content: Text('Profile berhasil diupdate!'),
+            backgroundColor: Colors.green,
+          ),
         );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal update profile: $e')));
       }
     } finally {
       if (mounted) {
@@ -175,10 +143,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 children: [
                                   CircleAvatar(
                                     radius: 60,
-                                    backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+                                    backgroundColor: const Color.fromRGBO(
+                                      0,
+                                      40,
+                                      120,
+                                      1,
+                                    ),
                                     child: Text(
                                       _nameController.text.isNotEmpty
-                                          ? _nameController.text[0].toUpperCase()
+                                          ? _nameController.text[0]
+                                                .toUpperCase()
                                           : 'U',
                                       style: const TextStyle(
                                         fontSize: 48,
@@ -193,9 +167,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                     child: Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: const Color.fromRGBO(0, 40, 120, 1),
+                                        color: const Color.fromRGBO(
+                                          0,
+                                          40,
+                                          120,
+                                          1,
+                                        ),
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 3),
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 3,
+                                        ),
                                       ),
                                       child: const Icon(
                                         Icons.camera_alt,
@@ -272,8 +254,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Email tidak boleh kosong';
                               }
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                  .hasMatch(value)) {
+                              if (!RegExp(
+                                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                              ).hasMatch(value)) {
                                 return 'Format email tidak valid';
                               }
                               return null;
@@ -312,7 +295,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                   height: 180,
                                   width: double.infinity,
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.grey.shade300),
+                                    border: Border.all(
+                                      color: Colors.grey.shade300,
+                                    ),
                                     borderRadius: BorderRadius.circular(12),
                                     color: Colors.grey.shade50,
                                   ),
@@ -350,7 +335,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             child: ElevatedButton(
                               onPressed: _isSaving ? null : _updateProfile,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color.fromARGB(255, 39, 215, 107),
+                                backgroundColor: const Color.fromARGB(
+                                  255,
+                                  39,
+                                  215,
+                                  107,
+                                ),
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -381,7 +371,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             width: double.infinity,
                             height: 50,
                             child: OutlinedButton(
-                              onPressed: _isSaving ? null : () => Navigator.pop(context),
+                              onPressed: _isSaving
+                                  ? null
+                                  : () => Navigator.pop(context),
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: Colors.red,
                                 foregroundColor: Colors.white,
@@ -428,7 +420,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     ),
                     child: SafeArea(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
                         child: Row(
                           children: [
                             IconButton(
@@ -457,20 +452,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _isAdmin ? Colors.red[100] : Colors.blue[100],
+                                  color: _isAdmin
+                                      ? Colors.red[100]
+                                      : Colors.blue[100],
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      _isAdmin 
-                                        ? Icons.admin_panel_settings 
-                                        : Icons.person,
+                                      _isAdmin
+                                          ? Icons.admin_panel_settings
+                                          : Icons.person,
                                       size: 16,
-                                      color: _isAdmin 
-                                        ? Colors.red[700] 
-                                        : Colors.blue[700],
+                                      color: _isAdmin
+                                          ? Colors.red[700]
+                                          : Colors.blue[700],
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
@@ -478,9 +475,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                        color: _isAdmin 
-                                          ? Colors.red[700] 
-                                          : Colors.blue[700],
+                                        color: _isAdmin
+                                            ? Colors.red[700]
+                                            : Colors.blue[700],
                                       ),
                                     ),
                                   ],

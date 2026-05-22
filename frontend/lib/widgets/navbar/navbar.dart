@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import 'package:pilotage_and_assistance_app/pages/profile/profile_page.dart';
+import 'package:pilotage_and_assistance_app/pages/superadmin/user_management_page.dart';
+import 'package:pilotage_and_assistance_app/services/firebase_auth_service.dart';
+import 'package:pilotage_and_assistance_app/services/firestore_data_service.dart';
 import '../../pages/settings/settings_page.dart';
 import '../../pages/pemanduan/pemanduan_page.dart';
 
@@ -16,9 +19,12 @@ class ResponsiveNavBarPage extends StatefulWidget {
 }
 
 class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
-  final String _baseUrl = 'http://192.168.0.9/pilotage_and_assistance_app/api';
+  final FirestoreDataService _dataService = FirestoreDataService();
+  final FirebaseAuthService _authService = FirebaseAuthService();
   String _userName = 'User';
+  String _userRole = '';
   bool? _isDashboardLoading = true;
+  StreamSubscription<List<Map<String, dynamic>>>? _recentActivitiesSub;
 
   List<Map<String, dynamic>>? _recentActivities = [];
 
@@ -28,51 +34,44 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
   @override
   void initState() {
     super.initState();
-    _loadUserName();
+    _loadUserContext();
     _loadDashboard();
   }
 
-  Future<void> _loadUserName() async {
+  @override
+  void dispose() {
+    _recentActivitiesSub?.cancel();
+    super.dispose();
+  }
+
+  bool get _isSuperadmin => _userRole.toLowerCase() == 'superadmin';
+
+  Future<void> _loadUserContext() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _userName = prefs.getString('userName') ?? 'User';
+      _userRole = prefs.getString('userRole') ?? '';
     });
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchRecentActivities() async {
-    final uri = Uri.parse('$_baseUrl/get_pilotages.php').replace(
-      queryParameters: {'page': '1', 'limit': '5'},
-    );
-
-    final response = await http.get(uri);
-    if (response.statusCode != 200) {
-      throw Exception('Server error: ${response.statusCode}');
-    }
-
-    final result = jsonDecode(response.body);
-    if (result['status'] != 'success') {
-      throw Exception(result['message'] ?? 'Gagal mengambil data kegiatan');
-    }
-
-    return List<Map<String, dynamic>>.from(result['data'] ?? []);
   }
 
   Future<void> _loadDashboard() async {
     setState(() => _isDashboardLoading = true);
-
-    try {
-      final recentActivities = await _fetchRecentActivities();
-
-      if (!mounted) return;
-
-      setState(() {
-        _recentActivities = recentActivities;
-        _isDashboardLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _isDashboardLoading = false);
-    }
+    await _recentActivitiesSub?.cancel();
+    _recentActivitiesSub = _dataService
+        .watchActivityLogs(limit: 5)
+        .listen(
+          (recentActivities) {
+            if (!mounted) return;
+            setState(() {
+              _recentActivities = recentActivities;
+              _isDashboardLoading = false;
+            });
+          },
+          onError: (_) {
+            if (!mounted) return;
+            setState(() => _isDashboardLoading = false);
+          },
+        );
   }
 
   Color _statusColor(String status) {
@@ -219,7 +218,10 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 24,
+                ),
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
@@ -249,10 +251,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 
@@ -327,6 +326,25 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
             );
           },
         ),
+        if (_isSuperadmin)
+          _buildQuickActionCard(
+            title: 'Manajemen Pengguna',
+            subtitle: 'Lihat, tambah, ubah, hapus akun',
+            icon: Icons.manage_accounts,
+            color: const Color(0xFF00897B),
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserManagementPage(),
+                ),
+              );
+
+              if (result == true) {
+                _loadUserContext();
+              }
+            },
+          ),
         if (isLargeScreen)
           _buildQuickActionCard(
             title: 'Pengaturan',
@@ -537,10 +555,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                   height: 72,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFFFFC145),
-                        Color(0xFFFF8A00),
-                      ],
+                      colors: [Color(0xFFFFC145), Color(0xFFFF8A00)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -632,8 +647,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await _authService.signOut();
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginPage()),

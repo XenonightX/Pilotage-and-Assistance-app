@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "362813937771",
+    "project_id": "pilotage-and-assistance-app",
+    "storage_bucket": "pilotage-and-assistance-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:362813937771:android:e5d6255c0adda01d75792e",
+        "android_client_info": {
+          "package_name": "com.example.pilotage_and_assistance_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBgzChgno8C37z49X7YdWjGEDv-3EPCd0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
