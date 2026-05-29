@@ -287,6 +287,8 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         "pilot_name": pilotController.text,
         "from_where": fromWhere,
         "to_where": toWhere,
+        "keterangan": selectedDirection,
+        "activity_direction": selectedDirection,
         "last_port": lastPortController.text,
         "next_port": nextPortController.text,
         "assist_tug_name": selectedAssistTugs.isEmpty

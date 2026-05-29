@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -13,9 +12,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:printing/printing.dart';
 
 class PdfGenerator {
-  static const String _signatureVerifyBaseUrl = String.fromEnvironment(
-    'SIGNATURE_VERIFY_BASE_URL',
-  );
+  static const String _signatureVerifyBaseUrl =
+      'https://pilotage-and-assistance-app.web.app';
 
   static Future<File?> generatePemanduanPdf(Map<String, dynamic> data) async {
     final formType = _text(data['form_type']).toLowerCase() == 'tunda'
@@ -68,20 +66,10 @@ class PdfGenerator {
     _PdfFonts fonts,
     pw.MemoryImage? logo,
   ) {
-    final id = _id(data);
+    final id = data['_doc_id']?.toString() ?? _id(data).toString();
     final certificateNumber = _certificateNumber(data, 'pandu');
     final requestNumber = _serviceRequestNumber(data);
-    final pilotCode = _pick(data, [
-      'pilot_code',
-      'pilot_license_no',
-      'pilot_nip',
-      'pilot_identifier',
-    ], '-');
-    final description = _pick(data, [
-      'description',
-      'keterangan',
-      'remarks',
-    ], '-');
+    final description = _activityDirectionText(data);
     final managerName = _upper('MOHAMMAD ADAM');
     final pilotDisplayName = _upper(data['pilot_name']);
     final masterOrAgency = _upper(_pick(data, ['master_name', 'agency']));
@@ -386,36 +374,15 @@ class PdfGenerator {
           size: 7,
         );
         _putText(c, fonts, 70, statementY + 12, ':', size: 9.5);
-        _line(c, 73, statementY + 19, 150, statementY + 19, 0.15);
+        _line(c, 73, statementY + 19, 194, statementY + 19, 0.15);
         _putFitText(
           c,
           fonts,
           74,
           statementY + 12.2,
           pilotDisplayName,
-          74,
+          118,
           size: 9.4,
-        );
-        _putText(c, fonts, 155, statementY + 11, 'Kode', size: 8.8);
-        _putText(
-          c,
-          fonts,
-          155,
-          statementY + 15.4,
-          'Code',
-          style: 'I',
-          size: 6.7,
-        );
-        _putText(c, fonts, 168.5, statementY + 12, ':', size: 9.5);
-        _line(c, 171, statementY + 19, 194, statementY + 19, 0.15);
-        _putFitText(
-          c,
-          fonts,
-          172,
-          statementY + 12.2,
-          _upper(pilotCode),
-          20,
-          size: 8.8,
         );
 
         const routeY = 155.5;
@@ -565,14 +532,10 @@ class PdfGenerator {
     _PdfFonts fonts,
     pw.MemoryImage? logo,
   ) {
-    final id = _id(data);
+    final id = data['_doc_id']?.toString() ?? _id(data).toString();
     final certificateNumber = _certificateNumber(data, 'tunda');
     final requestNumber = _serviceRequestNumber(data);
-    final description = _pick(data, [
-      'notes',
-      'description',
-      'keterangan',
-    ], '-');
+    final description = _activityDirectionText(data);
     final serviceDateValue = _pickRaw(data, [
       'date',
       'assistance_start',
@@ -1452,9 +1415,55 @@ class PdfGenerator {
     return '$y$m$d${_id(data).toString().padLeft(4, '0')}';
   }
 
+  static String _activityDirectionText(Map<String, dynamic> data) {
+    final direct = _normalizeActivityDirection(
+      _pick(data, [
+        'keterangan',
+        'activity_direction',
+        'direction',
+        'selected_direction',
+        'jenis_kegiatan',
+        'kegiatan',
+        'in_out',
+        'activity_type',
+      ]),
+    );
+    if (direct.isNotEmpty) return direct;
+
+    final legacyDescription = _normalizeActivityDirection(
+      _pick(data, ['description', 'notes', 'remarks']),
+    );
+    if (legacyDescription.isNotEmpty) return legacyDescription;
+
+    if (_isSeaEndpoint(data['from_where'])) return 'IN';
+    if (_isSeaEndpoint(data['to_where'])) return 'OUT';
+
+    return '';
+  }
+
+  static String _normalizeActivityDirection(String value) {
+    final upper = _upper(value);
+    if (upper.isEmpty) return '';
+    if (RegExp(r'\bOUT\b').hasMatch(upper) ||
+        upper.contains('OUTBOUND') ||
+        upper.contains('KELUAR')) {
+      return 'OUT';
+    }
+    if (RegExp(r'\bIN\b').hasMatch(upper) ||
+        upper.contains('INBOUND') ||
+        upper.contains('MASUK')) {
+      return 'IN';
+    }
+    return '';
+  }
+
+  static bool _isSeaEndpoint(dynamic value) {
+    return _upper(value) == 'LAUT';
+  }
+
   static String _qrPayload(
     String documentType,
-    int documentId,
+    String documentId,
     String slot,
     String name,
     String role,
@@ -1480,7 +1489,7 @@ class PdfGenerator {
           'k': hash,
         },
       ).query;
-      return '$normalizedBase/api/verify_signature.php?$query';
+      return '$normalizedBase/verify_signature.html?$query';
     }
     return 'SIG|$documentType|$documentId|$slot|$hash';
   }

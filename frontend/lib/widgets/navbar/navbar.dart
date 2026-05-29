@@ -6,6 +6,7 @@ import 'package:pilotage_and_assistance_app/pages/profile/profile_page.dart';
 import 'package:pilotage_and_assistance_app/pages/superadmin/user_management_page.dart';
 import 'package:pilotage_and_assistance_app/services/firebase_auth_service.dart';
 import 'package:pilotage_and_assistance_app/services/firestore_data_service.dart';
+import 'package:pilotage_and_assistance_app/pages/superadmin/manager_profile_page.dart';
 import '../../pages/settings/settings_page.dart';
 import '../../pages/pemanduan/pemanduan_page.dart';
 
@@ -343,6 +344,21 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
               if (result == true) {
                 _loadUserContext();
               }
+            },
+          ),
+        if (_isSuperadmin)
+          _buildQuickActionCard(
+            title: 'Profil Manager',
+            subtitle: 'Nama & tanda tangan manager PDF',
+            icon: Icons.admin_panel_settings,
+            color: const Color(0xFF5C6BC0),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ManagerProfilePage(),
+                ),
+              );
             },
           ),
         if (isLargeScreen)

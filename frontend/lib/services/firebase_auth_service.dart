@@ -90,6 +90,7 @@ class FirebaseAuthService {
     required String email,
     required String password,
     required String role,
+    String? signatureData,
   }) async {
     if (!UserSession.isSuperadmin()) {
       throw Exception(
@@ -122,6 +123,7 @@ class FirebaseAuthService {
         'role': role,
         'created_at': FieldValue.serverTimestamp(),
         'created_by_uid': UserSession.userUid,
+          if (signatureData != null) 'signature_data': signatureData,
       });
 
       await secondaryAuth.signOut();

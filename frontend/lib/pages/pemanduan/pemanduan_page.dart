@@ -1466,7 +1466,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                   Text(
                     'ID: ${_activityDisplayId(data)}',
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Color.fromRGBO(12, 10, 80, 1),
                     ),
@@ -1946,7 +1946,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
       exportBackgroundColor: Colors.transparent,
     );
 
-    String selectedStatus = data['status'] ?? 'Terjadwal';
+    // Status dihitung dari jam yang sudah terisi, bukan dari field status di DB
+    String selectedStatus = () {
+      bool valid(String t) => t.trim().isNotEmpty && t.trim() != '-';
+      if (valid(pilotGetOffController.text)) return 'Selesai';
+      if (valid(pilotFinishedController.text) ||
+          valid(vesselStartController.text))
+        return 'Aktif';
+      if (valid(pilotOnBoardController.text)) return 'Terjadwal';
+      return data['status'] ?? 'Terjadwal';
+    }();
+    bool signatureSaved = false;
+    final hasDbSignature =
+        data['signature'] != null &&
+        data['signature'].toString().trim().isNotEmpty;
 
     String selectedDirection;
     final jettyController = TextEditingController();
@@ -2018,12 +2031,12 @@ class _PemanduanPageState extends State<PemanduanPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           // Check if additional time fields should be shown
-          bool showTimeFields =
-              selectedStatus == 'Aktif' || selectedStatus == 'Selesai';
 
-          // Tampilkan signature canvas untuk status Aktif dan Selesai
+          bool showTimeFields = true; // selalu tampil
           bool showSignatureCanvas =
-              selectedStatus == 'Aktif' || selectedStatus == 'Selesai';
+              pilotFinishedController.text.isNotEmpty &&
+              !signatureSaved &&
+              !hasDbSignature;
 
           return AlertDialog(
             insetPadding: const EdgeInsets.symmetric(
@@ -2521,100 +2534,51 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: selectedStatus,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
                       ),
-                      items: ['Terjadwal', 'Aktif', 'Selesai']
-                          .map(
-                            (status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(status),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 18,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            selectedStatus,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: selectedStatus == 'Selesai'
+                                  ? Colors.green[700]
+                                  : selectedStatus == 'Aktif'
+                                  ? Colors.orange[700]
+                                  : Colors.blue[700],
                             ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setDialogState(() {
-                          selectedStatus = value!;
-                        });
-                      },
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '(otomatis berdasarkan jam)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
 
                     // Time Fields (shown only for Aktif or Selesai)
-                    if (showTimeFields) ...[
-                      const Text(
-                        'Waktu Pemanduan',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: pilotOnBoardController,
-                              decoration: const InputDecoration(
-                                labelText: 'Pandu Naik Kapal',
-                                border: OutlineInputBorder(),
-                                suffixIcon: Icon(Icons.access_time),
-                              ),
-                              readOnly: true,
-                              onTap: () =>
-                                  selectTime(context, pilotOnBoardController),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: vesselStartController,
-                              decoration: const InputDecoration(
-                                labelText: 'Kapal Bergerak',
-                                border: OutlineInputBorder(),
-                                suffixIcon: Icon(Icons.access_time),
-                              ),
-                              readOnly: true,
-                              onTap: () =>
-                                  selectTime(context, vesselStartController),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: pilotFinishedController,
-                              decoration: const InputDecoration(
-                                labelText: 'Pandu Selesai',
-                                border: OutlineInputBorder(),
-                                suffixIcon: Icon(Icons.access_time),
-                              ),
-                              readOnly: true,
-                              onTap: () =>
-                                  selectTime(context, pilotFinishedController),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: pilotGetOffController,
-                              decoration: const InputDecoration(
-                                labelText: 'Pandu Turun',
-                                border: OutlineInputBorder(),
-                                suffixIcon: Icon(Icons.access_time),
-                              ),
-                              readOnly: true,
-                              onTap: () =>
-                                  selectTime(context, pilotGetOffController),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
                     // Assist Tug Selection
                     const Text(
                       'Assist Tug',
@@ -2632,7 +2596,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           selected: isSelected,
                           onSelected: (selected) {
                             if (selected) {
-                              // Check if tug already selected
                               bool alreadySelected = selectedAssistTugs.any(
                                 (selectedTug) =>
                                     selectedTug['name'] == tug['name'],
@@ -2731,6 +2694,127 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       const SizedBox(height: 12),
                     ],
 
+                    // Time Fields (shown only for Aktif or Selesai)
+                    if (showTimeFields) ...[
+                      const Text(
+                        'Waktu Pemanduan',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: pilotOnBoardController,
+                              decoration: const InputDecoration(
+                                labelText: 'Pandu Naik Kapal',
+                                border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.access_time),
+                              ),
+                              readOnly: true,
+                              onTap: () async {
+                                await selectTime(
+                                  context,
+                                  pilotOnBoardController,
+                                );
+                                setDialogState(() {
+                                  if (pilotFinishedController.text.isNotEmpty ||
+                                      vesselStartController.text.isNotEmpty) {
+                                    selectedStatus = 'Aktif';
+                                  } else if (pilotOnBoardController
+                                      .text
+                                      .isNotEmpty) {
+                                    selectedStatus = 'Terjadwal';
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: vesselStartController,
+                              decoration: const InputDecoration(
+                                labelText: 'Kapal Bergerak',
+                                border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.access_time),
+                              ),
+                              readOnly: true,
+                              onTap: () async {
+                                await selectTime(
+                                  context,
+                                  vesselStartController,
+                                );
+                                setDialogState(() {
+                                  if (vesselStartController.text.isNotEmpty ||
+                                      pilotFinishedController.text.isNotEmpty) {
+                                    selectedStatus = 'Aktif';
+                                  } else if (pilotOnBoardController
+                                      .text
+                                      .isNotEmpty) {
+                                    selectedStatus = 'Terjadwal';
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Pandu Selesai — selalu tampil
+                      TextField(
+                        controller: pilotFinishedController,
+                        decoration: const InputDecoration(
+                          labelText: 'Pandu Selesai',
+                          border: OutlineInputBorder(),
+                          suffixIcon: Icon(Icons.access_time),
+                        ),
+                        readOnly: true,
+                        onTap: () async {
+                          await selectTime(context, pilotFinishedController);
+                          setDialogState(() {
+                            if (pilotFinishedController.text.isNotEmpty ||
+                                vesselStartController.text.isNotEmpty) {
+                              selectedStatus = 'Aktif';
+                            } else if (pilotOnBoardController.text.isNotEmpty) {
+                              selectedStatus = 'Terjadwal';
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Pandu Turun — hanya muncul setelah tanda tangan tersimpan
+                      if (signatureSaved || hasDbSignature) ...[
+                        TextField(
+                          controller: pilotGetOffController,
+                          decoration: const InputDecoration(
+                            labelText: 'Pandu Turun',
+                            border: OutlineInputBorder(),
+                            suffixIcon: Icon(Icons.access_time),
+                          ),
+                          readOnly: true,
+                          onTap: () async {
+                            await selectTime(context, pilotGetOffController);
+                            setDialogState(() {
+                              if (pilotGetOffController.text.isNotEmpty) {
+                                selectedStatus = 'Selesai';
+                              } else if (pilotFinishedController
+                                      .text
+                                      .isNotEmpty ||
+                                  vesselStartController.text.isNotEmpty) {
+                                selectedStatus = 'Aktif';
+                              } else if (pilotOnBoardController
+                                  .text
+                                  .isNotEmpty) {
+                                selectedStatus = 'Terjadwal';
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ],
                     // Signature canvas diletakkan paling akhir
                     if (showSignatureCanvas) ...[
                       Container(
@@ -2750,7 +2834,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Tanda tangan ini akan langsung masuk ke PDF dan TIDAK disimpan di database.',
+                                'Tanda tangan nahkoda akan disimpan ke database saat PDF berhasil di-generate.',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.blue[700],
@@ -2766,33 +2850,133 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      Container(
-                        height: 200,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Signature(controller: signatureController),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton.icon(
-                            onPressed: () {
-                              signatureController.clear();
-                            },
-                            icon: const Icon(Icons.clear, size: 18),
-                            label: const Text('Hapus Tanda Tangan'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.red,
-                            ),
+
+                      if (signatureSaved) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 20,
                           ),
-                        ],
-                      ),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green[300]!),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green[700],
+                                    size: 28,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Tanda tangan tersimpan',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green[700],
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    signatureController.clear();
+                                    setDialogState(() {
+                                      signatureSaved = false;
+                                    });
+                                  },
+                                  icon: const Icon(Icons.refresh, size: 18),
+                                  label: const Text(
+                                    'Hapus dan tanda tangan ulang',
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.orange,
+                                    side: const BorderSide(
+                                      color: Colors.orange,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        Container(
+                          height: 200,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Signature(controller: signatureController),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          // ← ubah jadi Row
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                // ← tombol hapus
+                                onPressed: () => signatureController.clear(),
+                                icon: const Icon(Icons.clear, size: 18),
+                                label: const Text('Hapus'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                  side: const BorderSide(color: Colors.red),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                // ← tombol simpan
+                                onPressed: () {
+                                  if (signatureController.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Canvas masih kosong, silakan tanda tangan terlebih dahulu.',
+                                        ),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  setDialogState(() {
+                                    signatureSaved = true;
+                                  });
+                                },
+                                icon: const Icon(Icons.check, size: 18),
+                                label: const Text('Simpan Tanda Tangan'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 16),
                     ],
                   ],
@@ -2842,6 +3026,8 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     'pilot_name': pilotController.text.trim(),
                     'from_where': fromWhere,
                     'to_where': toWhere,
+                    'keterangan': selectedDirection,
+                    'activity_direction': selectedDirection,
                     'last_port': lastPortController.text.trim(),
                     'next_port': nextPortController.text.trim(),
                     'status': selectedStatus,
@@ -2849,10 +3035,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         .map((tug) => tug['name'])
                         .join(','),
                     'engine_power': selectedAssistTugs
-                        .map((tug) => tug['power'])
+                        .map((tug) => tug['power'].toString())
                         .join(','),
                     'bollard_pull_power': selectedAssistTugs
-                        .map((tug) => tug['bollard_pull'])
+                        .map((tug) => tug['bollard_pull'].toString())
                         .join(','),
                   };
                   for (final key in [
@@ -2864,47 +3050,72 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     'sequence_year_month',
                   ]) {
                     if (data[key] != null) {
-                      updateData[key] = data[key];
+                      updateData[key] = data[key].toString();
                     }
                   }
 
                   // Always include time fields to prevent null values
-                  updateData['pilot_on_board'] = data['pilot_on_board'];
-                  updateData['pilot_finished'] = data['pilot_finished'];
-                  updateData['vessel_start'] = data['vessel_start'];
-                  updateData['pilot_get_off'] = data['pilot_get_off'];
-
-                  // Update time fields if status is Aktif or Selesai and values are provided
-                  if (selectedStatus == 'Aktif' ||
-                      selectedStatus == 'Selesai') {
-                    final eventDate =
-                        data['date'] ??
-                        DateTime.now().toIso8601String().split('T')[0];
-                    if (pilotOnBoardController.text.isNotEmpty) {
-                      updateData['pilot_on_board'] =
-                          '${eventDate}T${pilotOnBoardController.text}:00';
-                    }
-                    if (pilotFinishedController.text.isNotEmpty) {
-                      updateData['pilot_finished'] =
-                          '${eventDate}T${pilotFinishedController.text}:00';
-                    }
-                    if (vesselStartController.text.isNotEmpty) {
-                      updateData['vessel_start'] =
-                          '${eventDate}T${vesselStartController.text}:00';
-                    }
-                    if (pilotGetOffController.text.isNotEmpty) {
-                      updateData['pilot_get_off'] =
-                          '${eventDate}T${pilotGetOffController.text}:00';
-                    }
+                  // Simpan jam hanya jika controller terisi dan valid
+                  final eventDate =
+                      data['date'] ??
+                      DateTime.now().toIso8601String().split('T')[0];
+                  if (pilotOnBoardController.text.isNotEmpty &&
+                      pilotOnBoardController.text != '-') {
+                    updateData['pilot_on_board'] =
+                        '${eventDate}T${pilotOnBoardController.text}:00';
+                  }
+                  if (vesselStartController.text.isNotEmpty &&
+                      vesselStartController.text != '-') {
+                    updateData['vessel_start'] =
+                        '${eventDate}T${vesselStartController.text}:00';
+                  }
+                  if (pilotFinishedController.text.isNotEmpty &&
+                      pilotFinishedController.text != '-') {
+                    updateData['pilot_finished'] =
+                        '${eventDate}T${pilotFinishedController.text}:00';
+                  }
+                  if (pilotGetOffController.text.isNotEmpty &&
+                      pilotGetOffController.text != '-') {
+                    updateData['pilot_get_off'] =
+                        '${eventDate}T${pilotGetOffController.text}:00';
                   }
 
+                  if (showSignatureCanvas && signatureController.isEmpty) {
+                    if (mounted) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          icon: const Icon(
+                            Icons.draw_outlined,
+                            color: Colors.orange,
+                            size: 40,
+                          ),
+                          title: const Text('Tanda Tangan Diperlukan'),
+                          content: const Text(
+                            'Diperlukan tanda tangan nahkoda kapal '
+                            'sebelum data dapat diperbarui.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return; // Hentikan proses update
+                  }
                   // ==============================================
                   // SIMPAN SIGNATURE KE STATE (TEMPORARY)
                   // TIDAK DISIMPAN KE DATABASE!
                   // ==============================================
-                  if ((selectedStatus == 'Aktif' ||
-                          selectedStatus == 'Selesai') &&
-                      signatureController.isNotEmpty) {
+                  // ==============================================
+                  // SIMPAN SIGNATURE KE STATE (TEMPORARY)
+                  // TIDAK DISIMPAN KE DATABASE!
+                  // ==============================================
+                  // Simpan signature ke Firestore dan pending (untuk PDF)
+                  if (signatureSaved && signatureController.isNotEmpty) {
                     final signatureBytes = await signatureController
                         .toPngBytes();
                     if (signatureBytes != null) {
@@ -2914,27 +3125,22 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       final signatureDataUrl =
                           'data:image/png;base64,$signatureBase64';
 
+                      // Simpan ke pending untuk PDF
                       setState(() {
-                        // Simpan temporary per ID untuk PDF generation
                         _pendingSignatures[signatureId] = signatureBase64;
                         _pendingSignatures[displayId] = signatureBase64;
                       });
 
-                      // Kirim juga saat update agar bisa disimpan permanen (jika kolom tersedia)
-                      updateData['signature'] = signatureDataUrl;
-
-                      // Tampilkan notifikasi
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              '✅ Tanda tangan tersimpan sementara.\n'
-                              'Silakan generate PDF sebelum keluar dari halaman ini.',
-                            ),
-                            backgroundColor: Colors.orange,
-                            duration: Duration(seconds: 5),
-                          ),
-                        );
+                      // Simpan ke Firestore agar tidak muncul canvas lagi
+                      if (signatureId.isNotEmpty) {
+                        try {
+                          await FirebaseFirestore.instance
+                              .collection('activity_logs')
+                              .doc(signatureId)
+                              .update({'signature': signatureDataUrl});
+                        } catch (e) {
+                          debugPrint('Gagal simpan tanda tangan: $e');
+                        }
                       }
                     }
                   }
@@ -3056,6 +3262,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
       }
 
       final pdfData = Map<String, dynamic>.from(data);
+      pdfData['_doc_id'] = _activityDocId(data);
       pdfData['doc_id'] = id.toString();
       pdfData['id'] = _activityDisplayId(data);
       pdfData['form_type'] = type;
@@ -3093,6 +3300,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
       if (file == null) {
         throw Exception('Gagal menyimpan PDF. Periksa izin penyimpanan.');
+      }
+      if (signaturePayload != null) {
+        final docId = _activityDocId(data);
+        if (docId.isNotEmpty) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('activity_logs')
+                .doc(docId)
+                .update({'signature': signaturePayload});
+          } catch (e) {
+            // Tidak blokir proses jika gagal simpan — PDF tetap dicetak
+            debugPrint('Gagal menyimpan tanda tangan nahkoda: $e');
+          }
+        }
       }
 
       if (signatureToSend != null) {

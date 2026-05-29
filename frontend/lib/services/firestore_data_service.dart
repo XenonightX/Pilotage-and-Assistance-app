@@ -63,10 +63,6 @@ class FirestoreDataService {
     int limit = 50,
   }) {
     Query<Map<String, dynamic>> query = _activityLogs;
-
-    if (status.isNotEmpty && status != 'Semua') {
-      query = query.where('status', isEqualTo: status);
-    }
     if (startDate != null && startDate.isNotEmpty) {
       query = query.where('date', isGreaterThanOrEqualTo: startDate);
     }
@@ -79,13 +75,20 @@ class FirestoreDataService {
         .orderBy('pilot_on_board', descending: true)
         .limit(limit);
 
+    final normalizedStatus = _normalizeStatusFilter(status);
     final normalizedSearch = _normalizeSearch(search);
 
     return query.snapshots(includeMetadataChanges: true).map((snapshot) {
-      final rows = snapshot.docs.map(_mapActivityDocument).toList();
-      if (normalizedSearch.isEmpty) {
-        return rows;
+      var rows = snapshot.docs.map(_mapActivityDocument).toList();
+      if (normalizedStatus.isNotEmpty) {
+        rows = rows
+            .where(
+              (row) =>
+                  _normalizeStatusFilter(row['status']) == normalizedStatus,
+            )
+            .toList();
       }
+      if (normalizedSearch.isEmpty) return rows;
       return rows
           .where((row) => _matchesLocalSearch(row, normalizedSearch))
           .toList();
@@ -281,6 +284,12 @@ class FirestoreDataService {
 
   String _normalizeSearch(String search) {
     return search.trim().toLowerCase();
+  }
+
+  String _normalizeStatusFilter(dynamic status) {
+    final text = (status ?? '').toString().trim();
+    if (text.isEmpty || text == 'Semua') return '';
+    return text.toLowerCase();
   }
 
   List<String> _buildSearchTokens(Map<String, dynamic> data) {

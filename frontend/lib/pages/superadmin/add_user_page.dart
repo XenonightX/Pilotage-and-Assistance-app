@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:signature/signature.dart';
 import 'package:pilotage_and_assistance_app/services/firebase_auth_service.dart';
 import 'package:pilotage_and_assistance_app/utils/user_session.dart';
 import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
@@ -17,6 +19,12 @@ class _AddUserPageState extends State<AddUserPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final FirebaseAuthService _authService = FirebaseAuthService();
+
+  final SignatureController _signatureController = SignatureController(
+    penStrokeWidth: 2.5,
+    penColor: Colors.black,
+    exportBackgroundColor: Colors.white,
+  );
 
   String _selectedRole = 'pilot';
   String _currentUserRole = '';
@@ -36,6 +44,7 @@ class _AddUserPageState extends State<AddUserPage> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _signatureController.dispose();
     super.dispose();
   }
 
@@ -77,11 +86,22 @@ class _AddUserPageState extends State<AddUserPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Ambil signature jika ada
+      String? signatureDataUrl;
+      if (_signatureController.isNotEmpty) {
+        final signatureBytes = await _signatureController.toPngBytes();
+        if (signatureBytes != null) {
+          final signatureBase64 = base64Encode(signatureBytes);
+          signatureDataUrl = 'data:image/png;base64,$signatureBase64';
+        }
+      }
+
       await _authService.createUserAsSuperadmin(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
         role: _selectedRole,
+        signatureData: signatureDataUrl,
       );
 
       if (!mounted) return;
@@ -158,6 +178,8 @@ class _AddUserPageState extends State<AddUserPage> {
                         style: TextStyle(color: Colors.black54),
                       ),
                       const SizedBox(height: 20),
+
+                      // Nama
                       TextFormField(
                         controller: _nameController,
                         decoration: const InputDecoration(
@@ -173,6 +195,8 @@ class _AddUserPageState extends State<AddUserPage> {
                         },
                       ),
                       const SizedBox(height: 12),
+
+                      // Email
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -193,6 +217,8 @@ class _AddUserPageState extends State<AddUserPage> {
                         },
                       ),
                       const SizedBox(height: 12),
+
+                      // Password
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _isPasswordObscure,
@@ -225,6 +251,8 @@ class _AddUserPageState extends State<AddUserPage> {
                         },
                       ),
                       const SizedBox(height: 12),
+
+                      // Role
                       DropdownButtonFormField<String>(
                         initialValue: _selectedRole,
                         decoration: const InputDecoration(
@@ -256,7 +284,66 @@ class _AddUserPageState extends State<AddUserPage> {
                           });
                         },
                       ),
+                      const SizedBox(height: 20),
+
+                      // Signature Canvas
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Tanda Tangan',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color.fromRGBO(12, 10, 80, 1),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Digunakan untuk QR tanda tangan digital pada form 2A1/2A2. Opsional, bisa diisi nanti melalui edit profil.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 180,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.grey.shade50,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Signature(
+                            controller: _signatureController,
+                            backgroundColor: Colors.transparent,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  _signatureController.clear();
+                                  setState(() {});
+                                },
+                          icon: const Icon(Icons.clear, size: 16),
+                          label: const Text('Bersihkan'),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: Color.fromRGBO(0, 40, 120, 1),
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 24),
+
+                      // Tombol Batal & Simpan
                       Row(
                         children: [
                           Expanded(
@@ -311,6 +398,8 @@ class _AddUserPageState extends State<AddUserPage> {
               ),
             ),
           ),
+
+          // App Bar
           Positioned(
             top: 0,
             left: 0,

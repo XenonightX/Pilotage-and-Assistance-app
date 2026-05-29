@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verifikasi Tanda Tangan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blue-dark:  #0d2a5e;
+      --blue-mid:   #1a4a8a;
+      --blue-light: #2563c0;
+      --blue-bright:#3a7bd5;
+      --accent:     #4a9eff;
+      --white:      #ffffff;
+      --white80:    rgba(255,255,255,0.80);
+      --white50:    rgba(255,255,255,0.50);
+      --white20:    rgba(255,255,255,0.20);
+      --white10:    rgba(255,255,255,0.10);
+      --white06:    rgba(255,255,255,0.06);
+      --green:      #2ecc71;
+      --green-bg:   rgba(46,204,113,0.15);
+      --red:        #e74c3c;
+      --red-bg:     rgba(231,76,60,0.15);
+      --warn:       #f39c12;
+      --warn-bg:    rgba(243,156,18,0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Roboto', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+      overflow-x: hidden;
+      /* Gradasi biru persis seperti screenshot */
+      background: linear-gradient(160deg, #0d2a5e 0%, #1a4a8a 40%, #2563c0 75%, #3a7bd5 100%);
+    }
+
+    /* Lingkaran dekoratif — kiri atas */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -120px;
+      left: -120px;
+      width: 380px;
+      height: 380px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.07);
+      pointer-events: none;
+    }
+
+    /* Lingkaran dekoratif — kanan bawah */
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -100px;
+      right: -100px;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      pointer-events: none;
+    }
+
+    /* Lingkaran kecil kanan atas */
+    .deco-top-right {
+      position: fixed;
+      top: 30px;
+      right: -60px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .card {
+      width: min(640px, 100%);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px var(--white20),
+        0 32px 80px rgba(0,0,0,0.35),
+        0 8px 24px rgba(0,0,0,0.2);
+      position: relative;
+      z-index: 1;
+      animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
+      background: var(--white10);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(32px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Header ── */
+    .header {
+      padding: 28px 32px 24px;
+      border-bottom: 1px solid var(--white20);
+      text-align: center;
+    }
+
+    .logo-ring {
+      width: 110px;
+      height: 78px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+
+    .logo-ring img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .header h1 {
+      font-family: 'Roboto', sans-serif;
+      font-weight: 700;
+      font-size: 24px;
+      color: var(--white);
+      margin-bottom: 6px;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: var(--white50);
+    }
+
+    /* ── Content ── */
+    .content {
+      padding: 24px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Status badge */
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 600;
+      animation: fadeIn 0.4s 0.2s both;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .status-badge.valid   { background: var(--green-bg); color: var(--green); border: 1px solid rgba(46,204,113,0.3); }
+    .status-badge.invalid { background: var(--red-bg);   color: var(--red);   border: 1px solid rgba(231,76,60,0.3); }
+    .status-badge.warn    { background: var(--warn-bg);  color: var(--warn);  border: 1px solid rgba(243,156,18,0.3); }
+    .status-icon { font-size: 20px; flex-shrink: 0; }
+
+    /* Meta grid */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      animation: fadeIn 0.4s 0.3s both;
+    }
+
+    .meta-item {
+      background: var(--white06);
+      border: 1px solid var(--white20);
+      border-radius: 14px;
+      padding: 12px 16px;
+    }
+
+    .meta-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--white50);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 5px;
+    }
+
+    .meta-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--white);
+      word-break: break-word;
+    }
+
+    /* Divider */
+    .divider { height: 1px; background: var(--white20); }
+
+    /* Signature */
+    .sig-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--white50);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    .sig-box {
+      background: var(--white);
+      border-radius: 16px;
+      min-height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.4s 0.4s both;
+    }
+
+    .sig-box img {
+      max-width: 100%;
+      max-height: 240px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .sig-empty {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .sig-empty-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.5; }
+
+    /* Error */
+    .error-box {
+      background: var(--red-bg);
+      border: 1px solid rgba(231,76,60,0.3);
+      border-radius: 14px;
+      padding: 18px;
+      color: #ff8a80;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 40px;
+      color: var(--white50);
+      font-size: 14px;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--white20);
+      border-top-color: var(--white);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Footer */
+    .footer {
+      padding: 14px 32px;
+      border-top: 1px solid var(--white10);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .footer-brand { font-family: 'Roboto', sans-serif; font-weight: 700; font-size: 13px; color: var(--white80); }
+    .footer-note  { font-size: 11px; color: var(--white50); }
+
+    @media (max-width: 480px) {
+      .header, .content { padding: 20px; }
+      .header h1 { font-size: 20px; }
+      .footer { flex-direction: column; align-items: flex-start; gap: 4px; }
+    }
+  </style>
+</head>
+<body>
+<div class="deco-top-right"></div>
+
+<div class="card">
+  <div class="header">
+    <div class="logo-ring">
+      <img src="/assets/NO-BG-LOGO-SIS.png" alt="PT. Snepac Indo Service">
+    </div>
+    <h1>Verifikasi Tanda Tangan</h1>
+    <p>Halaman ini dibuka dari QR code pada sertifikat digital.</p>
+  </div>
+
+  <div class="content" id="content">
+    <div class="loading">
+      <div class="spinner"></div>
+      <span>Memuat data dari server...</span>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-brand">Snepac Indo Service</span>
+    <span class="footer-note">Sistem Verifikasi Digital</span>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: 'AIzaSyDJ2xCWsCKGlVAmFztBlGWlCrt28lZ42Y0',
+    authDomain: 'pilotage-and-assistance-app.firebaseapp.com',
+    projectId: 'pilotage-and-assistance-app',
+    storageBucket: 'pilotage-and-assistance-app.firebasestorage.app',
+    messagingSenderId: '362813937771',
+    appId: '1:362813937771:web:29080a34c79c15f375792e',
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  const params       = new URLSearchParams(location.search);
+  const documentType = (params.get('d') || '').toUpperCase();
+  const documentId   = params.get('i') || '';
+  const slot         = (params.get('s') || '').toUpperCase();
+  const expectedHash = (params.get('k') || '').toLowerCase();
+
+  function textOrEmpty(v) { return v == null ? '' : String(v).trim(); }
+  function upper(v)       { return textOrEmpty(v).toUpperCase(); }
+  function pdfText(v)     { return textOrEmpty(v).replace(/\s+/g,' '); }
+  function upperHash(v)   { return pdfText(v).toUpperCase(); }
+
+  function normalizeSignature(v) {
+    const t = textOrEmpty(v);
+    if (!t) return '';
+    if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(t)) {
+      const comma = t.indexOf(',');
+      if (comma < 0) return t;
+      return t.substring(0, comma + 1) + t.substring(comma + 1).replace(/\s+/g,'');
+    }
+    if (/^[A-Za-z0-9+/=\r\n]+$/.test(t)) return 'data:image/png;base64,' + t.replace(/\s+/g,'');
+    return '';
+  }
+
+  async function sha256hex(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  function slotLabel(s) {
+    const map = { MANAGER:'Manager', PILOT:'Marine Pilot', MASTER_AGENT:'Master / Agent' };
+    if (map[s]) return map[s];
+    const m = s.match(/^TUG_MASTER(?:_(\d+))?$/);
+    if (m) { const n = m[1] ? parseInt(m[1]) : 1; return n > 1 ? `Tug Boat Master ${n}` : 'Tug Boat Master'; }
+    return s;
+  }
+
+  function docLabel(d) { return d==='2A1' ? 'Form Pandu 2A1' : d==='2A2' ? 'Form Tunda 2A2' : d; }
+
+  function tugMasterIndex(s) {
+    const m = s.match(/^TUG_MASTER(?:_(\d+))?$/);
+    if (!m) return 0;
+    return Math.max((m[1] ? parseInt(m[1]) : 1) - 1, 0);
+  }
+
+  function normalizeTugName(v) {
+    return pdfText(v).replace(/^(?:TB\.?|T\.?\s*B\.?|TUG\s*BOAT|KAPAL\s*TUNDA)\s*/i,'').replace(/^[\s.-]+|[\s.-]+$/g,'');
+  }
+
+  function getTugNames(data) {
+    const names = [];
+    for (let i=1;i<=3;i++) { const n=normalizeTugName(textOrEmpty(data[`assist_tug_name_${i}`])); if(n) names.push(n); }
+    if (names.length) return [...new Set(names)];
+    return textOrEmpty(data['assist_tug_name']).split(/\s*[/,]\s*/).map(normalizeTugName).filter(Boolean);
+  }
+
+  function getRawTugNames(data) {
+    const names = [];
+    for (let i=1;i<=3;i++) { const n=textOrEmpty(data[`assist_tug_name_${i}`]); if(n) names.push(n); }
+    if (names.length) return [...new Set(names)];
+    return textOrEmpty(data['assist_tug_name']).split(/\s*[/,]\s*/).map(textOrEmpty).filter(Boolean);
+  }
+
+  function addTugHashSource(sources, name) {
+    const normalized = upperHash(name);
+    if (!normalized) return;
+    const source = `${normalized}|tugboat|NOSIG`;
+    if (!sources.includes(source)) sources.push(source);
+  }
+
+  function tugHashSources(rawName, normalizedName, profileName) {
+    const sources = [];
+    const normalized = normalizeTugName(normalizedName || rawName || profileName);
+    addTugHashSource(sources, rawName);
+    addTugHashSource(sources, normalizedName);
+    addTugHashSource(sources, profileName);
+    addTugHashSource(sources, normalized);
+    if (normalized) {
+      addTugHashSource(sources, `TB. ${normalized}`);
+      addTugHashSource(sources, `TB.${normalized}`);
+      addTugHashSource(sources, `TUG BOAT ${normalized}`);
+    }
+    if (!sources.length) addTugHashSource(sources, 'TUG BOAT MASTER');
+    return sources;
+  }
+
+  async function fetchByLegacyOrId(col, id) {
+    // Coba sebagai Firestore document ID string dulu
+    const d = await getDoc(doc(db,col,id));
+    if (d.exists()) return d.data();
+
+    // Fallback: cari by legacy_id integer
+    const numId = parseInt(id);
+    if (!isNaN(numId)) {
+      const snap = await getDocs(query(collection(db,col), where('legacy_id','==',numId), limit(1)));
+      if (!snap.empty) return snap.docs[0].data();
+    }
+    return null;
+  }
+
+  async function fetchUserByName(name, roles) {
+    if (!name) return null;
+    const snap = await getDocs(query(collection(db,'users'), where('role','in',roles), orderBy('name'), limit(30)));
+    const lname = name.toLowerCase().trim();
+    for (const d of snap.docs) { if (textOrEmpty(d.data().name).toLowerCase()===lname) return d.data(); }
+    return null;
+  }
+
+  async function fetchUserById(uid) {
+    if (!uid) return null;
+    const d = await getDoc(doc(db,'users',uid));
+    return d.exists() ? d.data() : null;
+  }
+
+  async function fetchManagerProfile() {
+    try {
+      const docSnap = await getDoc(doc(db, 'settings', 'manager'));
+      if (docSnap.exists()) return docSnap.data();
+    } catch(e) {
+      // fallback
+    }
+    return null;
+  }
+
+  async function fetchFirstByRoles(roles) {
+    const snap = await getDocs(query(collection(db,'users'), where('role','in',roles), orderBy('name'), limit(1)));
+    return snap.empty ? null : snap.docs[0].data();
+  }
+
+  async function resolveView(documentType, slot, data) {
+    // ── MANAGER ──────────────────────────────────────────────────────────────
+    // dart: managerName = _upper('MOHAMMAD ADAM'), hash = 'MOHAMMAD ADAM|admin|NOSIG'
+    if (slot==='MANAGER') {
+      const p = await fetchManagerProfile();
+      return {
+        display_name: upper(p?.name || 'MANAGER'),
+        display_role: upper(p?.title || 'MANAGER PEMANDUAN'),
+        signature: normalizeSignature(p?.signature_data || ''),
+        // Hash selalu pakai nama & role yang sama dengan yang di-hardcode dart
+        hash_source: `${upperHash('MOHAMMAD ADAM')}|admin|NOSIG`,
+      };
+    }
+
+    // ── PILOT ─────────────────────────────────────────────────────────────────
+    // dart: hash = 'upper(data.pilot_name)|pilot|NOSIG'  — SELALU NOSIG, pakai field dokumen
+    if (slot==='PILOT') {
+      const uid  = textOrEmpty(data['pilot_uid']);
+      const name = textOrEmpty(data['pilot_name']);
+      let p = null;
+      try {
+        p = uid ? await fetchUserById(uid) : null;
+        if (!p) p = await fetchUserByName(name, ['pilot','pandu']);
+      } catch(_) {
+        // Gagal ambil profil pilot (mis. index Firestore belum dibuat) — lanjut tanpa profil
+        p = null;
+      }
+      // Nama untuk hash harus dari field dokumen (sama dengan dart), bukan nama profil
+      const docPilotName = upper(name) || upper(p?.name||'') || 'MARINE PILOT';
+      return {
+        display_name: upper(p?.name||name||'MARINE PILOT'),
+        display_role: upper(p?.role||'pilot'),
+        signature: normalizeSignature(p?.signature_data||''),
+        hash_source: `${upperHash(docPilotName)}|pilot|NOSIG`,
+      };
+    }
+
+    // ── MASTER_AGENT ──────────────────────────────────────────────────────────
+    // Tanda tangan nahkoda digambar di canvas saat kegiatan dan TIDAK disimpan ke Firestore.
+    // HTML hanya bisa menampilkan jika sebelumnya sudah disimpan ke field 'signature' di DB.
+    // dart: hash = signature.isEmpty ? 'NAME|NOSIG' : signature
+    // fallback NOSIG tetap diterima untuk PDF yang dibuat sebelum signature tersimpan.
+    if (slot==='MASTER_AGENT') {
+      const masterOrAgency = upper(data['master_name']||data['agency']||'MASTER / AGENT');
+      // Coba ambil dari beberapa kemungkinan nama field
+      const rawSig = data['signature'] || data['master_signature'] || data['nahkoda_signature'] || '';
+      const sig = normalizeSignature(rawSig);
+      const noSigSource = `${upperHash(masterOrAgency)}|NOSIG`;
+      return {
+        display_name: masterOrAgency,
+        display_role: 'EXTERNAL',
+        signature: sig,
+        sig_note: sig ? '' : 'Tanda tangan nahkoda/agen ditandatangani langsung pada dokumen fisik dan tidak tersimpan di server.',
+        // Terima hash signature dan fallback NOSIG agar PDF lama/baru tetap valid.
+        hash_source: sig || noSigSource,
+        hash_sources: sig ? [sig, noSigSource] : [noSigSource],
+      };
+    }
+
+    // ── TUG_MASTER ────────────────────────────────────────────────────────────
+    // dart: hash = 'upper(tugName dari data)|tugboat|NOSIG'  ← SELALU NOSIG
+    if (/^TUG_MASTER(_\d+)?$/.test(slot)) {
+      const idx      = tugMasterIndex(slot);
+      const rawTugNames = getRawTugNames(data);
+      const rawTugName = rawTugNames[idx]||rawTugNames[0]||'';
+      const tugNames = getTugNames(data);
+      const tugName = tugNames[idx]||tugNames[0]||normalizeTugName(rawTugName);
+      let p = tugName ? await fetchUserByName(tugName,['tugboat']) : null;
+      if (!p && rawTugName) p = await fetchUserByName(rawTugName,['tugboat']);
+      if (!p) p = await fetchFirstByRoles(['tugboat']);
+      const hashSources = tugHashSources(rawTugName, tugName, p?.name||'');
+      const tugSignature = normalizeSignature(p?.signature_data||'');
+      if (tugSignature && !hashSources.includes(tugSignature)) {
+        hashSources.unshift(tugSignature);
+      }
+      return {
+        display_name: upper(p?.name||tugName||'TUG BOAT MASTER'),
+        display_role: upper(p?.role||'tugboat'),
+        signature: tugSignature,
+        hash_source: hashSources[0],
+        hash_sources: hashSources,
+      };
+    }
+
+    throw new Error('Slot tidak dikenal: ' + slot);
+  }
+
+  function renderError(msg) {
+    document.getElementById('content').innerHTML = `<div class="error-box">⚠️ ${msg}</div>`;
+  }
+
+  function renderResult(view, hashStatus, data) {
+    const statusHtml = hashStatus==='match'
+      ? `<div class="status-badge valid"><span class="status-icon">✅</span> Tanda tangan valid dan cocok dengan QR</div>`
+      : hashStatus==='mismatch'
+      ? `<div class="status-badge invalid"><span class="status-icon">❌</span> Hash tidak cocok — data mungkin telah berubah</div>`
+      : `<div class="status-badge warn"><span class="status-icon">⚠️</span> Hash QR tidak tersedia untuk divalidasi</div>`;
+
+    const sigHtml = view.signature
+      ? `<img src="${view.signature}" alt="Tanda tangan digital">`
+      : `<div class="sig-empty"><div class="sig-empty-icon">✍️</div>${view.sig_note || 'Tanda tangan belum tersedia untuk slot ini.'}</div>`;
+
+    document.getElementById('content').innerHTML = `
+      ${statusHtml}
+      <div class="meta-grid">
+        <div class="meta-item"><div class="meta-label">Dokumen</div><div class="meta-value">${docLabel(documentType)}</div></div>
+        <div class="meta-item"><div class="meta-label">No. Sertifikat</div><div class="meta-value">${data['pilot_certificate_no'] || data['tug_certificate_no'] || data['tunda_certificate_no'] || data['activity_no'] || data['document_no'] || documentId}</div></div>
+        <div class="meta-item"><div class="meta-label">Posisi</div><div class="meta-value">${slotLabel(slot)}</div></div>
+        <div class="meta-item"><div class="meta-label">Nama</div><div class="meta-value">${view.display_name||'-'}</div></div>
+      </div>
+      <div class="divider"></div>
+      <div>
+        <div class="sig-label">Tanda Tangan</div>
+        <div class="sig-box">${sigHtml}</div>
+      </div>`;
+  }
+
+  async function main() {
+    try {
+      if (!['2A1','2A2'].includes(documentType)) throw new Error('Parameter dokumen tidak valid.');
+      if (!documentId) throw new Error('ID dokumen tidak valid.');
+      if (!['MANAGER','PILOT','MASTER_AGENT'].includes(slot) && !/^TUG_MASTER(_\d+)?$/.test(slot))
+        throw new Error('Parameter slot tidak valid.');
+
+      let data = await fetchByLegacyOrId('activity_logs', documentId);
+      if (!data) throw new Error('Data dokumen tidak ditemukan di server.');
+
+      const view = await resolveView(documentType, slot, data);
+
+      let hashStatus = 'unknown';
+      if (expectedHash) {
+        // Gunakan hash_source/hash_sources yang dihitung di resolveView() agar
+        // cocok dengan logika _qrPayload() di pdf_generator.dart, termasuk PDF lama.
+        const sources = (Array.isArray(view.hash_sources) && view.hash_sources.length)
+          ? view.hash_sources
+          : [view.hash_source];
+        hashStatus = 'mismatch';
+        for (const source of sources) {
+          if (!source) continue;
+          const full = await sha256hex(source);
+          if (full.substring(0,20) === expectedHash) {
+            hashStatus = 'match';
+            break;
+          }
+        }
+      }
+
+      renderResult(view, hashStatus, data);
+    } catch(e) {
+      renderError(`[${e.name||'Error'}] ${e.message || 'Terjadi kesalahan tidak dikenal.'}`);
+    }
+  }
+
+  main();
+</script>
+</body>
+</html>
