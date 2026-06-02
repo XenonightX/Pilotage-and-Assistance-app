@@ -92,6 +92,11 @@ class _PemanduanPageState extends State<PemanduanPage> {
     return role == 'admin' || role == 'superadmin';
   }
 
+  bool get _canGeneratePdf {
+    final role = _userRole.toLowerCase();
+    return role != 'pilot' && role != 'pandu' && role != 'tugboat';
+  }
+
   String _activityDocId(Map<String, dynamic> data) {
     for (final key in ['_doc_id', 'doc_id', 'document_id']) {
       final value = data[key]?.toString().trim() ?? '';
@@ -515,32 +520,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     }
   }
 
-  // Show access denied dialog for non-admin users
-  void _showAccessDeniedDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.block, color: Colors.red[700], size: 28),
-            const SizedBox(width: 12),
-            const Text('Akses Ditolak'),
-          ],
-        ),
-        content: const Text(
-          'Hanya Admin yang dapat menghapus data pemanduan.\n\nSilakan hubungi administrator jika Anda memerlukan bantuan.',
-          style: TextStyle(fontSize: 15),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Mengerti'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -849,10 +828,15 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                         ),
                                         const SizedBox(height: 16),
                                         Text(
-                                          'Tidak ada data',
+                                          'Tidak ada data kegiatan',
                                           style: TextStyle(
                                             fontSize: 16,
-                                            color: Colors.grey[600],
+                                            color: const Color.fromARGB(
+                                              255,
+                                              255,
+                                              255,
+                                              255,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -938,16 +922,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                 _buildRoleBadge(showText: showRoleText),
                               ],
                               SizedBox(width: isNarrow ? 2 : 4),
-                              IconButton(
-                                constraints: BoxConstraints.tightFor(
-                                  width: iconBox,
-                                  height: 48,
-                                ),
-                                icon: const Icon(Icons.refresh),
-                                onPressed: _loadData,
-                                tooltip: 'Refresh',
-                                visualDensity: VisualDensity.compact,
-                              ),
                             ],
                           );
                         },
@@ -1369,65 +1343,81 @@ class _PemanduanPageState extends State<PemanduanPage> {
                 ),
                 DataCell(_buildStatusBadge(data['status'] ?? 'Terjadwal')),
                 DataCell(
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.visibility,
-                          color: Colors.blue,
-                          size: 20,
-                        ),
-                        onPressed: () => _showDetailDialog(context, data),
-                        tooltip: 'Lihat Detail',
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.edit,
-                          color: Colors.orange,
-                          size: 20,
-                        ),
-                        onPressed: () => _showEditDialog(context, data),
-                        tooltip: 'Edit',
-                      ),
-                      // Tombol PDF untuk kegiatan yang sudah Selesai
-                      if (data['status'] == 'Selesai') ...[
-                        IconButton(
-                          icon: const Icon(
-                            Icons.picture_as_pdf,
-                            color: Colors.green,
-                            size: 20,
-                          ),
-                          onPressed: () => _showPdfGenerationDialog(
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'detail':
+                          _showDetailDialog(context, data);
+                          break;
+                        case 'edit':
+                          _showEditDialog(context, data);
+                          break;
+                        case 'pdf':
+                          _showPdfGenerationDialog(
                             context,
                             _activityDocId(data),
                             data,
-                          ),
-                          tooltip: 'Generate PDF',
-                        ),
-                      ],
-                      // Tombol Delete hanya muncul untuk Admin
-                      if (_isAdmin) ...[
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            color: Colors.red,
-                            size: 20,
-                          ),
-                          onPressed: () => _showDeleteConfirmation(
+                          );
+                          break;
+                        case 'delete':
+                          _showDeleteConfirmation(
                             context,
                             _activityDocId(data),
-                          ),
-                          tooltip: 'Hapus',
+                          );
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem<String>(
+                        value: 'detail',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.visibility,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                            SizedBox(width: 10),
+                            Text('Lihat Detail'),
+                          ],
                         ),
-                      ] else
-                        IconButton(
-                          icon: Icon(
-                            Icons.delete,
-                            color: Colors.grey[400],
-                            size: 20,
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, color: Colors.orange, size: 20),
+                            SizedBox(width: 10),
+                            Text('Edit'),
+                          ],
+                        ),
+                      ),
+                      if (data['status'] == 'Selesai' && _canGeneratePdf)
+                        const PopupMenuItem<String>(
+                          value: 'pdf',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.picture_as_pdf,
+                                color: Colors.green,
+                                size: 20,
+                              ),
+                              SizedBox(width: 10),
+                              Text('Generate PDF'),
+                            ],
                           ),
-                          onPressed: _showAccessDeniedDialog,
-                          tooltip: 'Hapus (Admin Only)',
+                        ),
+                      if (_isAdmin)
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, color: Colors.red, size: 20),
+                              SizedBox(width: 10),
+                              Text('Hapus'),
+                            ],
+                          ),
                         ),
                     ],
                   ),
@@ -1626,98 +1616,118 @@ class _PemanduanPageState extends State<PemanduanPage> {
   }
 
   Widget _buildCardActions(BuildContext context, Map<String, dynamic> data) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 360;
+    final isOngoing =
+        data['status'] == 'Terjadwal' || data['status'] == 'Aktif';
 
-        return Align(
-          alignment: Alignment.centerRight,
-          child: Wrap(
-            alignment: WrapAlignment.end,
-            spacing: compact ? 6 : 4,
-            runSpacing: 6,
-            children: [
-              if (data['status'] == 'Selesai')
-                _buildCardActionButton(
-                  onPressed: () => _showPdfGenerationDialog(
-                    context,
-                    _activityDocId(data),
-                    data,
-                  ),
-                  icon: Icons.picture_as_pdf,
-                  label: 'PDF',
-                  color: Colors.green,
-                  compact: compact,
-                ),
-              _buildCardActionButton(
-                onPressed: () => _showDetailDialog(context, data),
-                icon: Icons.visibility,
-                label: 'Detail',
-                color: Colors.blue,
-                compact: compact,
-              ),
-              _buildCardActionButton(
-                onPressed: () => _showEditDialog(context, data),
-                icon: Icons.edit,
-                label: 'Edit',
-                color: Colors.orange,
-                compact: compact,
-              ),
-              if (_isAdmin)
-                _buildCardActionButton(
-                  onPressed: () =>
-                      _showDeleteConfirmation(context, _activityDocId(data)),
-                  icon: Icons.delete,
-                  label: 'Hapus',
-                  color: Colors.red,
-                  compact: compact,
-                ),
-            ],
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (isOngoing) ...[
+          ElevatedButton.icon(
+            onPressed: () => _showEditDialog(context, data),
+            icon: const Icon(Icons.play_arrow, size: 18),
+            label: const Text('Lanjutkan Kegiatan'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color.fromARGB(255,225,109,0,),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              textStyle: const TextStyle(fontSize: 13),
+            ),
           ),
-        );
-      },
-    );
-  }
+          const SizedBox(width: 8),
+        ],
 
-  Widget _buildCardActionButton({
-    required VoidCallback onPressed,
-    required IconData icon,
-    required String label,
-    required Color color,
-    bool compact = false,
-  }) {
-    if (compact) {
-      return SizedBox(
-        width: 40,
-        height: 40,
-        child: IconButton(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 20),
-          color: color,
-          tooltip: label,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          visualDensity: VisualDensity.compact,
+          Builder(
+            builder: (context) {
+              final isOngoing =
+                  data['status'] == 'Terjadwal' || data['status'] == 'Aktif';
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'detail':
+                          _showDetailDialog(context, data);
+                          break;
+                        case 'edit':
+                          _showEditDialog(context, data);
+                          break;
+                        case 'pdf':
+                          _showPdfGenerationDialog(
+                            context,
+                            _activityDocId(data),
+                            data,
+                          );
+                          break;
+                        case 'delete':
+                          _showDeleteConfirmation(
+                            context,
+                            _activityDocId(data),
+                          );
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem<String>(
+                        value: 'detail',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.visibility,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                            SizedBox(width: 10),
+                            Text('Lihat Detail'),
+                          ],
+                        ),
+                      ),
+                      if (!isOngoing)
+                        const PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit, color: Colors.orange, size: 20),
+                              SizedBox(width: 10),
+                              Text('Edit'),
+                            ],
+                          ),
+                        ),
+                      if (data['status'] == 'Selesai' && _canGeneratePdf)
+                        const PopupMenuItem<String>(
+                          value: 'pdf',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.picture_as_pdf,
+                                color: Colors.green,
+                                size: 20,
+                              ),
+                              SizedBox(width: 10),
+                              Text('Generate PDF'),
+                            ],
+                          ),
+                        ),
+                      if (_isAdmin)
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, color: Colors.red, size: 20),
+                              SizedBox(width: 10),
+                              Text('Hapus'),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            },
         ),
-      );
-    }
-
-    return TextButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13),
-      ),
-      style: TextButton.styleFrom(
-        foregroundColor: color,
-        minimumSize: const Size(0, 36),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
-      ),
+      ],
     );
   }
 

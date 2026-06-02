@@ -29,7 +29,7 @@ class _ManagerProfilePageState extends State<ManagerProfilePage> {
   bool _isLoading = true;
   bool _isSaving = false;
   String? _existingSignatureData;
-
+  bool _showSignatureCanvas = false;
   bool get _isSuperadmin => _currentUserRole.toLowerCase() == 'superadmin';
 
   @override
@@ -85,6 +85,50 @@ class _ManagerProfilePageState extends State<ManagerProfilePage> {
     }
   }
 
+  Future<void> _confirmChangeSignature() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('Ganti Tanda Tangan'),
+          ],
+        ),
+        content: const Text(
+          'Apakah Anda yakin ingin mengganti tanda tangan Manager Pemanduan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color.fromRGBO(0, 40, 120, 1),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ya, Ganti'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (confirm == true) {
+      _signatureController.clear();
+      setState(() => _showSignatureCanvas = true);
+    }
+  }
+
+  void _addSignature() {
+    _signatureController.clear();
+    setState(() => _showSignatureCanvas = true);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_isSuperadmin) return;
@@ -128,6 +172,56 @@ class _ManagerProfilePageState extends State<ManagerProfilePage> {
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Widget _buildSignaturePreview() {
+    final signatureData = _existingSignatureData?.trim() ?? '';
+    final payload = signatureData.replaceFirst(
+      RegExp(r'data:image/[^;]+;base64,'),
+      '',
+    );
+
+    try {
+      final bytes = base64Decode(payload);
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Tanda tangan tersimpan:',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Image.memory(bytes, height: 120, fit: BoxFit.contain),
+            ),
+          ],
+        ),
+      );
+    } on FormatException {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          border: Border.all(color: Colors.orange.shade100),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          'Tanda tangan tersimpan tidak dapat ditampilkan.',
+          style: TextStyle(fontSize: 12, color: Colors.black87),
+        ),
+      );
     }
   }
 
@@ -231,93 +325,95 @@ class _ManagerProfilePageState extends State<ManagerProfilePage> {
                             ),
                             const SizedBox(height: 12),
 
-                            // Preview tanda tangan lama
-                            if (_existingSignatureData != null &&
-                                _signatureController.isEmpty) ...[
-                              Container(
+                            if (!_showSignatureCanvas) ...[
+                              if (_existingSignatureData != null &&
+                                  _existingSignatureData!.trim().isNotEmpty)
+                                _buildSignaturePreview(),
+                              SizedBox(
                                 width: double.infinity,
-                                padding: const EdgeInsets.all(12),
+                                child: OutlinedButton.icon(
+                                  onPressed: _isSaving
+                                      ? null
+                                      : (_existingSignatureData != null &&
+                                            _existingSignatureData!
+                                                .trim()
+                                                .isNotEmpty)
+                                      ? _confirmChangeSignature
+                                      : _addSignature,
+                                  icon: const Icon(Icons.draw_outlined),
+                                  label: Text(
+                                    _existingSignatureData != null &&
+                                            _existingSignatureData!
+                                                .trim()
+                                                .isNotEmpty
+                                        ? 'Ganti Tanda Tangan'
+                                        : 'Tambah Tanda Tangan',
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    side: const BorderSide(
+                                      color: Color.fromRGBO(0, 40, 120, 1),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ] else ...[
+                              Container(
+                                height: 180,
+                                width: double.infinity,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
                                   border: Border.all(
                                     color: Colors.grey.shade300,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey.shade50,
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Tanda tangan tersimpan:',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.black54,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Center(
-                                      child: Image.memory(
-                                        base64Decode(
-                                          _existingSignatureData!.replaceFirst(
-                                            RegExp(r'data:image/[^;]+;base64,'),
-                                            '',
-                                          ),
-                                        ),
-                                        height: 120,
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'Gambar di bawah untuk mengganti tanda tangan.',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.black45,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-
-                            // Kanvas tanda tangan baru
-                            Container(
-                              height: 180,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(12),
-                                color: Colors.grey.shade50,
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Signature(
-                                  controller: _signatureController,
-                                  backgroundColor: Colors.transparent,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: OutlinedButton.icon(
-                                onPressed: _isSaving
-                                    ? null
-                                    : () {
-                                        _signatureController.clear();
-                                        setState(() {});
-                                      },
-                                icon: const Icon(Icons.clear, size: 16),
-                                label: const Text('Bersihkan'),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(
-                                    color: Color.fromRGBO(0, 40, 120, 1),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Signature(
+                                    controller: _signatureController,
+                                    backgroundColor: Colors.transparent,
                                   ),
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: _isSaving
+                                        ? null
+                                        : () {
+                                            _signatureController.clear();
+                                            setState(
+                                              () =>
+                                                  _showSignatureCanvas = false,
+                                            );
+                                          },
+                                    icon: const Icon(Icons.undo, size: 16),
+                                    label: const Text('Batal Ganti'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: _isSaving
+                                        ? null
+                                        : () {
+                                            _signatureController.clear();
+                                            setState(() {});
+                                          },
+                                    icon: const Icon(Icons.clear, size: 16),
+                                    label: const Text('Bersihkan'),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(
+                                        color: Color.fromRGBO(0, 40, 120, 1),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                             const SizedBox(height: 24),
 
                             // Tombol

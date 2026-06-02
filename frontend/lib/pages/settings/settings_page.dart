@@ -10,8 +10,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _darkMode = false;
-  bool _notificationsEnabled = true;
   String _userRole = '';
 
   @override
@@ -44,129 +42,6 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                // Preferensi Aplikasi Section
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 1,
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.settings,
-                              color: Colors.blue,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            "Preferensi Aplikasi",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color.fromRGBO(12, 10, 80, 1),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SwitchListTile(
-                        title: const Text("Mode Gelap"),
-                        subtitle: const Text(
-                          "Aktifkan tema gelap untuk aplikasi",
-                        ),
-                        value: _darkMode,
-                        onChanged: (value) {
-                          setState(() {
-                            _darkMode = value;
-                          });
-                        },
-                        activeColor: const Color.fromRGBO(0, 40, 120, 1),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Notifikasi Section
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 1,
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.notifications,
-                              color: Colors.orange,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Text(
-                            "Notifikasi",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color.fromRGBO(12, 10, 80, 1),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SwitchListTile(
-                        title: const Text("Aktifkan Notifikasi"),
-                        subtitle: const Text(
-                          "Terima pemberitahuan dari aplikasi",
-                        ),
-                        value: _notificationsEnabled,
-                        onChanged: (value) {
-                          setState(() {
-                            _notificationsEnabled = value;
-                          });
-                        },
-                        activeColor: const Color.fromRGBO(0, 40, 120, 1),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
 
                 // Tentang Aplikasi Section
                 Container(

@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:signature/signature.dart';
 import 'package:pilotage_and_assistance_app/services/firebase_auth_service.dart';
 import 'package:pilotage_and_assistance_app/widgets/common/gradient_background.dart';
 
@@ -16,11 +14,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final SignatureController _signatureController = SignatureController(
-    penStrokeWidth: 2.4,
-    penColor: Colors.black,
-    exportBackgroundColor: Colors.transparent,
-  );
   final FirebaseAuthService _authService = FirebaseAuthService();
 
   String _userRole = '';
@@ -56,19 +49,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() => _isSaving = true);
 
     try {
-      String? signatureDataUrl;
-      if (_signatureController.isNotEmpty) {
-        final signatureBytes = await _signatureController.toPngBytes();
-        if (signatureBytes != null) {
-          final signatureBase64 = base64Encode(signatureBytes);
-          signatureDataUrl = 'data:image/png;base64,$signatureBase64';
-        }
-      }
-
       await _authService.updateCurrentUserProfile(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
-        signatureData: signatureDataUrl,
       );
 
       final prefs = await SharedPreferences.getInstance();
@@ -101,7 +84,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _signatureController.dispose();
     super.dispose();
   }
 
@@ -264,68 +246,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           ),
                           const SizedBox(height: 24),
 
-                          const Text(
-                            'Signature Profile',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Digunakan untuk QR tanda tangan digital pada form 2A1/2A2. Jika tidak digambar ulang, signature profile lama tetap dipakai.',
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Container(
-                                  height: 180,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                    color: Colors.grey.shade50,
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Signature(
-                                      controller: _signatureController,
-                                      backgroundColor: Colors.transparent,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: OutlinedButton.icon(
-                                    onPressed: _isSaving
-                                        ? null
-                                        : () {
-                                            _signatureController.clear();
-                                            setState(() {});
-                                          },
-                                    icon: const Icon(Icons.clear),
-                                    label: const Text('Bersihkan'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                           const SizedBox(height: 40),
 
                           // Tombol Simpan

@@ -17,6 +17,7 @@ $userId = $data["user_id"] ?? 0;
 $name = $data["name"] ?? '';
 $email = $data["email"] ?? '';
 $signatureData = $data["signature_data"] ?? null;
+$requesterUserId = (int)($data["requester_user_id"] ?? 0);
 
 if (is_string($signatureData)) {
     $signatureData = trim($signatureData);
@@ -24,6 +25,8 @@ if (is_string($signatureData)) {
         $signatureData = null;
     }
 }
+
+$wantsSignatureUpdate = $signatureData !== null;
 
 // Validasi input
 if (empty($userId) || empty($name) || empty($email)) {
@@ -41,6 +44,41 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         "message" => "Format email tidak valid"
     ]);
     exit;
+}
+
+if ($wantsSignatureUpdate) {
+    if ($requesterUserId <= 0) {
+        http_response_code(403);
+        echo json_encode([
+            "status" => "error",
+            "message" => "Akses ditolak. Hanya superadmin yang dapat mengubah tanda tangan."
+        ]);
+        exit;
+    }
+
+    $authStmt = $conn->prepare("SELECT role FROM users WHERE id = ? LIMIT 1");
+    if (!$authStmt) {
+        http_response_code(500);
+        echo json_encode([
+            "status" => "error",
+            "message" => "Gagal validasi akses"
+        ]);
+        exit;
+    }
+    $authStmt->bind_param("i", $requesterUserId);
+    $authStmt->execute();
+    $authResult = $authStmt->get_result();
+    $requester = $authResult->fetch_assoc();
+    $authStmt->close();
+
+    if (!$requester || strtolower(trim($requester["role"] ?? "")) !== "superadmin") {
+        http_response_code(403);
+        echo json_encode([
+            "status" => "error",
+            "message" => "Akses ditolak. Hanya superadmin yang dapat mengubah tanda tangan."
+        ]);
+        exit;
+    }
 }
 
 // Cek apakah email sudah digunakan oleh user lain
@@ -65,7 +103,7 @@ if ($checkSignatureColumn && $checkSignatureColumn->num_rows > 0) {
     $hasSignatureColumn = true;
 }
 
-if (!$hasSignatureColumn && !empty($signatureData)) {
+if (!$hasSignatureColumn && $wantsSignatureUpdate) {
     if ($conn->query("ALTER TABLE users ADD COLUMN signature_data LONGTEXT NULL") === true) {
         $hasSignatureColumn = true;
     }
@@ -73,7 +111,7 @@ if (!$hasSignatureColumn && !empty($signatureData)) {
 
 // Update data user
 $sql = "UPDATE users SET name = ?, email = ?";
-$withSignature = $hasSignatureColumn && !empty($signatureData);
+$withSignature = $hasSignatureColumn && $wantsSignatureUpdate;
 if ($withSignature) {
     $sql .= ", signature_data = ?";
 }

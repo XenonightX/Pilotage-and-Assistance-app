@@ -418,11 +418,13 @@ class _EditUserDialogState extends State<_EditUserDialog> {
 
     setState(() => _isSaving = true);
     try {
-      await _dataService.updateUserProfile(uid, {
+      final payload = <String, dynamic>{
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'role': _selectedRole,
-      });
+      };
+
+      await _dataService.updateUserProfile(uid, payload);
 
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -443,63 +445,70 @@ class _EditUserDialogState extends State<_EditUserDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Ubah Pengguna'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Lengkap *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Nama wajib diisi';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _emailController,
-                readOnly: true,
-                decoration: const InputDecoration(
-                  labelText: 'Email Login',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'Role *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.badge),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'pilot', child: Text('Pilot')),
-                  DropdownMenuItem(value: 'tugboat', child: Text('Tugboat')),
-                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                  DropdownMenuItem(
-                    value: 'superadmin',
-                    child: Text('Superadmin'),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 24,
+      ), 
+      content: SizedBox(
+        width: double.maxFinite, // ← tambah ini
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Lengkap *',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
                   ),
-                ],
-                onChanged: _isCurrentUser
-                    ? null
-                    : (value) {
-                        setState(() => _selectedRole = value ?? 'pilot');
-                      },
-              ),
-            ],
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Nama wajib diisi';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _emailController,
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Email Login',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _selectedRole, // ← sudah benar dari fix sebelumnya
+                  decoration: const InputDecoration(
+                    labelText: 'Role *',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.badge),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'pilot', child: Text('Pilot')),
+                    DropdownMenuItem(value: 'tugboat', child: Text('Tugboat')),
+                    DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                    DropdownMenuItem(
+                      value: 'superadmin',
+                      child: Text('Superadmin'),
+                    ),
+                  ],
+                  onChanged: _isCurrentUser
+                      ? null
+                      : (value) {
+                          setState(() => _selectedRole = value ?? 'pilot');
+                        },
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+      ), // ← tutup SizedBox
       actions: [
         TextButton(
           onPressed: _isSaving ? null : () => Navigator.pop(context, false),
@@ -588,11 +597,7 @@ class _MessagePanel extends StatelessWidget {
   }
 }
 
-String _field(
-  Map<String, dynamic> row,
-  String key, {
-  String fallback = '',
-}) {
+String _field(Map<String, dynamic> row, String key, {String fallback = ''}) {
   final value = row[key]?.toString().trim() ?? '';
   return value.isEmpty ? fallback : value;
 }

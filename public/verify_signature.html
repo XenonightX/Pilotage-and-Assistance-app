@@ -515,8 +515,8 @@
         signature: sig,
         sig_note: sig ? '' : 'Tanda tangan nahkoda/agen ditandatangani langsung pada dokumen fisik dan tidak tersimpan di server.',
         // Terima hash signature dan fallback NOSIG agar PDF lama/baru tetap valid.
-        hash_source: sig || noSigSource,
-        hash_sources: sig ? [sig, noSigSource] : [noSigSource],
+        hash_source: noSigSource,
+hash_sources: [noSigSource],
       };
     }
 

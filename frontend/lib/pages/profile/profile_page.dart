@@ -14,7 +14,6 @@ class _ProfilePageState extends State<ProfilePage> {
   String _userName = '';
   String _userEmail = '';
   String _userRole = '';
-  int _userId = 0;
   bool _isLoading = true;
 
   @override
@@ -30,7 +29,6 @@ class _ProfilePageState extends State<ProfilePage> {
       _userName = prefs.getString('userName') ?? 'User';
       _userEmail = prefs.getString('userEmail') ?? 'email@example.com';
       _userRole = prefs.getString('userRole') ?? 'User';
-      _userId = prefs.getInt('userId') ?? 0;
       _isLoading = false;
     });
   }
@@ -138,14 +136,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
-                              ),
-                              const SizedBox(height: 15),
-
-                              // ID User
-                              _buildInfoCard(
-                                icon: Icons.badge,
-                                title: 'User ID',
-                                value: '#$_userId',
                               ),
                               const SizedBox(height: 10),
 

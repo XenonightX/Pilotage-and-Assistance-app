@@ -60,18 +60,13 @@ class FirebaseAuthService {
   Future<void> updateCurrentUserProfile({
     required String name,
     required String email,
-    String? signatureData,
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('User belum login.');
     }
 
-    final data = {
-      'name': name.trim(),
-      'email': email.trim(),
-      if (signatureData != null) 'signature_data': signatureData,
-    };
+    final data = {'name': name.trim(), 'email': email.trim()};
 
     await _dataService.setUserProfile(user.uid, data);
     await user.updateDisplayName(name.trim());
@@ -123,7 +118,7 @@ class FirebaseAuthService {
         'role': role,
         'created_at': FieldValue.serverTimestamp(),
         'created_by_uid': UserSession.userUid,
-          if (signatureData != null) 'signature_data': signatureData,
+        if (signatureData != null) 'signature_data': signatureData,
       });
 
       await secondaryAuth.signOut();

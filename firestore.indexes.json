@@ -4,84 +4,41 @@
       "collectionGroup": "activity_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "date",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "pilot_on_board",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" },
+        { "fieldPath": "pilot_on_board", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "activity_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "date",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "pilot_on_board",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "date", "order": "DESCENDING" },
+        { "fieldPath": "pilot_on_board", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "activity_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "search_tokens",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "date",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "search_tokens", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "date", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "assistance_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "date",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
       ]
     },
     {
       "collectionGroup": "users",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "role",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "assist_tugs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "assist_tug_name",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "role", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
       ]
     }
   ],

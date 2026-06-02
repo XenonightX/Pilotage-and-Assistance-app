@@ -299,11 +299,8 @@ class _AddUserPageState extends State<AddUserPage> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Digunakan untuk QR tanda tangan digital pada form 2A1/2A2. Opsional, bisa diisi nanti melalui edit profil.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
+                        'Digunakan untuk QR tanda tangan digital pada form 2A1/2A2. Opsional, bisa diisi nanti melalui manajemen pengguna.',
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                       const SizedBox(height: 12),
                       Container(
