@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pilotage_and_assistance_app/pages/profile/profile_page.dart';
@@ -25,7 +24,14 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
   String _userName = 'User';
   String _userRole = '';
   bool? _isDashboardLoading = true;
-  StreamSubscription<List<Map<String, dynamic>>>? _recentActivitiesSub;
+StreamSubscription<List<Map<String, dynamic>>>? _recentActivitiesSub;
+StreamSubscription<Map<String, String>>? _statsSub;
+Map<String, dynamic> _stats = {
+    'total': '0',
+    'active': '0',
+    'completed': '0',
+    'scheduled': '0',
+  };
 
   List<Map<String, dynamic>>? _recentActivities = [];
 
@@ -42,6 +48,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
   @override
   void dispose() {
     _recentActivitiesSub?.cancel();
+    _statsSub?.cancel();
     super.dispose();
   }
 
@@ -58,6 +65,7 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
   Future<void> _loadDashboard() async {
     setState(() => _isDashboardLoading = true);
     await _recentActivitiesSub?.cancel();
+    _fetchStats();
     _recentActivitiesSub = _dataService
         .watchActivityLogs(limit: 5)
         .listen(
@@ -232,6 +240,95 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
                       children: [
                         _buildHeroCard(),
                         const SizedBox(height: 18),
+                        // Stats Cards
+                        isLargeScreen
+                            ? Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      'Total',
+                                      _stats['total']!,
+                                      Icons.assessment,
+                                      Colors.blue,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      'Aktif',
+                                      _stats['active']!,
+                                      Icons.sailing,
+                                      Colors.orange,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      'Selesai',
+                                      _stats['completed']!,
+                                      Icons.check_circle,
+                                      Colors.green,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      'Terjadwal',
+                                      _stats['scheduled']!,
+                                      Icons.schedule,
+                                      Colors.purple,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          'Total',
+                                          _stats['total']!,
+                                          Icons.assessment,
+                                          Colors.blue,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          'Aktif',
+                                          _stats['active']!,
+                                          Icons.sailing,
+                                          Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          'Selesai',
+                                          _stats['completed']!,
+                                          Icons.check_circle,
+                                          Colors.green,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          'Terjadwal',
+                                          _stats['scheduled']!,
+                                          Icons.schedule,
+                                          Colors.purple,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                        const SizedBox(height: 18),
                         _buildQuickActions(isLargeScreen),
                         const SizedBox(height: 18),
                         _buildRecentActivities(),
@@ -244,6 +341,98 @@ class _ResponsiveNavBarPageState extends State<ResponsiveNavBarPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _fetchStats() {
+    final now = DateTime.now();
+    final todayStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    _statsSub?.cancel();
+    _statsSub = _dataService
+        .watchActivityStatsForDate(todayStr)
+        .listen(
+          (data) {
+            if (!mounted) return;
+            setState(() => _stats = data);
+          },
+          onError: (_) {
+            if (!mounted) return;
+            setState(() {
+              _stats = {
+                'total': '0',
+                'active': '0',
+                'completed': '0',
+                'scheduled': '0',
+              };
+            });
+          },
+        );
+  }
+
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Hari Ini',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+        ],
       ),
     );
   }

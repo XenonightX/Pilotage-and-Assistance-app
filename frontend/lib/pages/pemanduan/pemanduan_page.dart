@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signature/signature.dart';
 import 'package:pilotage_and_assistance_app/pages/pemanduan/tambah_pemanduan_page.dart';
+import 'package:pilotage_and_assistance_app/services/offline_sync_service.dart';
 import 'package:pilotage_and_assistance_app/services/firestore_data_service.dart';
 import 'package:pilotage_and_assistance_app/utils/pdf_generator.dart';
 import 'package:pilotage_and_assistance_app/utils/user_session.dart';
@@ -42,17 +43,10 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   final FirestoreDataService _dataService = FirestoreDataService();
   StreamSubscription<List<Map<String, dynamic>>>? _pilotagesSub;
-  StreamSubscription<Map<String, String>>? _statsSub;
+  StreamSubscription<int>? _pendingSyncSub;
   List<Map<String, dynamic>> _allPemanduanList = [];
   List<Map<String, dynamic>> _pemanduanList = [];
   bool _isLoading = true;
-
-  Map<String, dynamic> _stats = {
-    'total': '0',
-    'active': '0',
-    'completed': '0',
-    'scheduled': '0',
-  };
 
   // Pagination variables
   int _currentPage = 1;
@@ -67,13 +61,20 @@ class _PemanduanPageState extends State<PemanduanPage> {
   void initState() {
     super.initState();
     _loadUserRole();
-    _loadData();
+    _fetchPilotages();
+
+    // Refresh list otomatis saat item pending berubah (sync selesai)
+    _pendingSyncSub = OfflineSyncService.instance.pendingCountStream.listen((
+      _,
+    ) {
+      if (mounted) _refreshPendingItems();
+    });
   }
 
   @override
   void dispose() {
     _pilotagesSub?.cancel();
-    _statsSub?.cancel();
+    _pendingSyncSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -129,10 +130,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
     return keys.toList();
   }
 
-  Future<void> _loadData() async {
-    await Future.wait([_fetchPilotages(), _fetchStats()]);
-  }
-
   Future<void> _fetchPilotages() async {
     setState(() => _isLoading = true);
     await _pilotagesSub?.cancel();
@@ -153,17 +150,17 @@ class _PemanduanPageState extends State<PemanduanPage> {
           limit: 1000,
         )
         .listen(
-          (rows) {
+          (firestoreRows) {
             if (!mounted) return;
             setState(() {
-              _allPemanduanList = rows;
-              _totalData = rows.length;
+              final pendingRows =
+                  OfflineSyncService.instance.getPendingItems();
+              _allPemanduanList = [...pendingRows, ...firestoreRows];
+              _totalData = _allPemanduanList.length;
               _totalPages = _totalData > 0
                   ? ((_totalData / _rowsPerPage).ceil())
                   : 1;
-              if (_currentPage > _totalPages) {
-                _currentPage = _totalPages;
-              }
+              if (_currentPage > _totalPages) _currentPage = _totalPages;
               _applyPagination();
               _isLoading = false;
             });
@@ -172,36 +169,27 @@ class _PemanduanPageState extends State<PemanduanPage> {
             if (!mounted) return;
             setState(() => _isLoading = false);
             if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Gagal memuat data: $e')));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Gagal memuat data: $e')),
+              );
             }
           },
         );
   }
 
-  Future<void> _fetchStats() async {
-    final todayStr = _formatDateForQuery(DateTime.now());
-    await _statsSub?.cancel();
-    _statsSub = _dataService
-        .watchActivityStatsForDate(todayStr)
-        .listen(
-          (data) {
-            if (!mounted) return;
-            setState(() => _stats = data);
-          },
-          onError: (_) {
-            if (!mounted) return;
-            setState(() {
-              _stats = {
-                'total': '0',
-                'active': '0',
-                'completed': '0',
-                'scheduled': '0',
-              };
-            });
-          },
-        );
+  void _refreshPendingItems() {
+    final pendingRows = OfflineSyncService.instance.getPendingItems();
+    final firestoreRows = _allPemanduanList
+        .where((r) => r['_is_pending'] != true)
+        .toList();
+    setState(() {
+      _allPemanduanList = [...pendingRows, ...firestoreRows];
+      _totalData = _allPemanduanList.length;
+      _totalPages = _totalData > 0
+          ? ((_totalData / _rowsPerPage).ceil())
+          : 1;
+      _applyPagination();
+    });
   }
 
   String _formatDateForQuery(DateTime date) {
@@ -467,32 +455,65 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
   Future<void> _updatePilotages(Map<String, dynamic> data) async {
     try {
-      final docId = _activityDocId(data);
-      if (docId.isEmpty) {
-        throw Exception('ID dokumen tidak ditemukan');
+      // Item pending (masih di Hive, belum ke Firestore)
+      if (data['_is_pending'] == true) {
+        final pendingId = data['_pending_id']?.toString() ?? '';
+        if (pendingId.isEmpty) throw Exception('Pending ID tidak ditemukan');
+
+        await OfflineSyncService.instance.updatePending(pendingId, data);
+        _refreshPendingItems();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Data diperbarui. Akan diupload otomatis saat Anda online.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
       }
+
+      // Item normal (sudah di Firestore)
+      final docId = _activityDocId(data);
+      if (docId.isEmpty) throw Exception('ID dokumen tidak ditemukan');
 
       final payload = Map<String, dynamic>.from(data)
         ..remove('_doc_id')
         ..remove('doc_id')
         ..remove('_has_pending_writes');
 
+      final online = await OfflineSyncService.isOnline;
       await _dataService.updateActivityLog(docId, payload);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data berhasil diupdate!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(
+              online
+                  ? 'Data berhasil diupdate!'
+                  : 'Anda sedang offline, data kegiatan akan otomatis diupload ketika Anda online',
+            ),
+            backgroundColor: online ? Colors.green : Colors.orange,
+            duration: Duration(seconds: online ? 3 : 5),
           ),
         );
       }
     } catch (e) {
+      final isOffline = e.toString().contains('unavailable');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengupdate data: $e'),
-            backgroundColor: Colors.red,
+            content: Text(
+              isOffline
+                  ? 'Anda sedang offline, data kegiatan akan otomatis diupload ketika Anda online'
+                  : 'Gagal mengupdate data: $e',
+            ),
+            backgroundColor: isOffline ? Colors.orange : Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -537,103 +558,13 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     child: CircularProgressIndicator(color: Colors.white),
                   )
                 : RefreshIndicator(
-                    onRefresh: _loadData,
+                    onRefresh: _fetchPilotages,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Stats Cards
-                          isLargeScreen
-                              ? Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        'Total Kegiatan',
-                                        _stats['total']!,
-                                        Icons.assessment,
-                                        Colors.blue,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        'Aktif',
-                                        _stats['active']!,
-                                        Icons.sailing,
-                                        Colors.orange,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        'Selesai',
-                                        _stats['completed']!,
-                                        Icons.check_circle,
-                                        Colors.green,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        'Terjadwal',
-                                        _stats['scheduled']!,
-                                        Icons.schedule,
-                                        Colors.purple,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : Column(
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _buildStatCard(
-                                            'Total',
-                                            _stats['total']!,
-                                            Icons.assessment,
-                                            Colors.blue,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: _buildStatCard(
-                                            'Aktif',
-                                            _stats['active']!,
-                                            Icons.sailing,
-                                            Colors.orange,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: _buildStatCard(
-                                            'Selesai',
-                                            _stats['completed']!,
-                                            Icons.check_circle,
-                                            Colors.green,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: _buildStatCard(
-                                            'Terjadwal',
-                                            _stats['scheduled']!,
-                                            Icons.schedule,
-                                            Colors.purple,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                          const SizedBox(height: 30),
-
                           // Search, Filter, Add Button
                           Wrap(
                             spacing: 12,
@@ -765,7 +696,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                                     ),
                                   );
                                   if (result == true) {
-                                    _loadData();
+                                    _fetchPilotages();
                                   }
                                 },
                                 icon: const Icon(Icons.add),
@@ -967,73 +898,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 6,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              // Badge "Hari Ini"
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Hari Ini',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
         ],
       ),
     );
@@ -1628,7 +1492,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
             icon: const Icon(Icons.play_arrow, size: 18),
             label: const Text('Lanjutkan Kegiatan'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color.fromARGB(255,225,109,0,),
+              backgroundColor: const Color.fromARGB(255, 225, 109, 0),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               textStyle: const TextStyle(fontSize: 13),
@@ -1637,95 +1501,88 @@ class _PemanduanPageState extends State<PemanduanPage> {
           const SizedBox(width: 8),
         ],
 
-          Builder(
-            builder: (context) {
-              final isOngoing =
-                  data['status'] == 'Terjadwal' || data['status'] == 'Aktif';
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert),
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'detail':
-                          _showDetailDialog(context, data);
-                          break;
-                        case 'edit':
-                          _showEditDialog(context, data);
-                          break;
-                        case 'pdf':
-                          _showPdfGenerationDialog(
-                            context,
-                            _activityDocId(data),
-                            data,
-                          );
-                          break;
-                        case 'delete':
-                          _showDeleteConfirmation(
-                            context,
-                            _activityDocId(data),
-                          );
-                          break;
-                      }
-                    },
-                    itemBuilder: (context) => [
+        Builder(
+          builder: (context) {
+            final isOngoing =
+                data['status'] == 'Terjadwal' || data['status'] == 'Aktif';
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'detail':
+                        _showDetailDialog(context, data);
+                        break;
+                      case 'edit':
+                        _showEditDialog(context, data);
+                        break;
+                      case 'pdf':
+                        _showPdfGenerationDialog(
+                          context,
+                          _activityDocId(data),
+                          data,
+                        );
+                        break;
+                      case 'delete':
+                        _showDeleteConfirmation(context, _activityDocId(data));
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem<String>(
+                      value: 'detail',
+                      child: Row(
+                        children: [
+                          Icon(Icons.visibility, color: Colors.blue, size: 20),
+                          SizedBox(width: 10),
+                          Text('Lihat Detail'),
+                        ],
+                      ),
+                    ),
+                    if (!isOngoing)
                       const PopupMenuItem<String>(
-                        value: 'detail',
+                        value: 'edit',
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.visibility,
-                              color: Colors.blue,
-                              size: 20,
-                            ),
+                            Icon(Icons.edit, color: Colors.orange, size: 20),
                             SizedBox(width: 10),
-                            Text('Lihat Detail'),
+                            Text('Edit'),
                           ],
                         ),
                       ),
-                      if (!isOngoing)
-                        const PopupMenuItem<String>(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit, color: Colors.orange, size: 20),
-                              SizedBox(width: 10),
-                              Text('Edit'),
-                            ],
-                          ),
+                    if (data['status'] == 'Selesai' && _canGeneratePdf)
+                      const PopupMenuItem<String>(
+                        value: 'pdf',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.picture_as_pdf,
+                              color: Colors.green,
+                              size: 20,
+                            ),
+                            SizedBox(width: 10),
+                            Text('Generate PDF'),
+                          ],
                         ),
-                      if (data['status'] == 'Selesai' && _canGeneratePdf)
-                        const PopupMenuItem<String>(
-                          value: 'pdf',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.picture_as_pdf,
-                                color: Colors.green,
-                                size: 20,
-                              ),
-                              SizedBox(width: 10),
-                              Text('Generate PDF'),
-                            ],
-                          ),
+                      ),
+                    if (_isAdmin)
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, color: Colors.red, size: 20),
+                            SizedBox(width: 10),
+                            Text('Hapus'),
+                          ],
                         ),
-                      if (_isAdmin)
-                        const PopupMenuItem<String>(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, color: Colors.red, size: 20),
-                              SizedBox(width: 10),
-                              Text('Hapus'),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              );
-            },
+                      ),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

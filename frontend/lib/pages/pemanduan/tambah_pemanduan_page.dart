@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pilotage_and_assistance_app/services/offline_sync_service.dart';
 import 'package:pilotage_and_assistance_app/services/firestore_data_service.dart';
 import 'package:pilotage_and_assistance_app/utils/user_session.dart';
 
@@ -173,32 +174,6 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
 
   Future<void> _submitData() async {
     if (!_formKey.currentState!.validate()) {
-      print('========== Form tidak valid! ==========');
-      print('Vessel Type: $vesselType');
-      print('Vessel Name: ${vesselController.text}');
-      print('Tug Name: ${tugNameController.text}');
-      print('Barge Name: ${bargeNameController.text}');
-      print('Call Sign: ${callSignController.text}');
-      print('Master: ${masterController.text}');
-      print('Flag: ${flagController.text}');
-      print('Agency: ${agencyController.text}');
-      print('GT Tug: ${gtTugController.text}');
-      print('GT Barge: ${gtBargeController.text}');
-      print('LOA Tug: ${loaTugController.text}');
-      print('LOA Barge: ${loaBargeController.text}');
-      print('Foredraft: ${foredraftController.text}');
-      print('Aftdraft: ${aftdraftController.text}');
-      print('Pilot: ${pilotController.text}');
-      print('Jetty: ${jettyController.text}');
-      print('Last Port: ${lastPortController.text}');
-      print('Next Port: ${nextPortController.text}');
-      print(
-        'Assist Tugs: ${selectedAssistTugs.map((tug) => '${tug['name']} (${tug['power']} HP)').join(', ')}',
-      );
-      print('Date: ${dateController.text}');
-      print('Time: ${timeController.text}');
-      print('=======================================');
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -224,6 +199,7 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
     setState(() => _isLoading = true);
 
     try {
+      // ── Bangun data payload ──────────────────────────────
       final dbDate =
           '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
       final dbTime =
@@ -238,7 +214,6 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         toWhere = 'LAUT';
       }
 
-      // Format GT dan LOA sesuai jenis kapal
       String grossTonnage;
       String loa;
       String vesselName;
@@ -252,12 +227,10 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         if (bargeNameController.text.trim().isNotEmpty) {
           vesselName += '/${bargeNameController.text.trim()}';
         }
-
         grossTonnage = gtTugController.text;
         if (gtBargeController.text.isNotEmpty) {
           grossTonnage += '/${gtBargeController.text}';
         }
-
         loa = loaTugController.text;
         if (loaBargeController.text.isNotEmpty) {
           loa += '/${loaBargeController.text}';
@@ -305,27 +278,48 @@ class _TambahPemanduanPageState extends State<TambahPemanduanPage> {
         "status": "Terjadwal",
       };
 
-      await _dataService.addActivityLog(data);
+      // ── Cek koneksi, simpan online atau antri offline ────
+      final online = await OfflineSyncService.isOnline;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data berhasil ditambahkan!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, true);
+      if (online) {
+        await _dataService.addActivityLog(data);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Data berhasil ditambahkan!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context, true);
+        }
+      } else {
+        await OfflineSyncService.instance.enqueue(data);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Anda sedang offline. Data tersimpan lokal dan akan otomatis diupload saat Anda online.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal menambahkan data: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menambahkan data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
+  } // ← penutup _submitData
 
   @override
   Widget build(BuildContext context) {
