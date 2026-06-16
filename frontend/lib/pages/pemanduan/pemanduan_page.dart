@@ -153,8 +153,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
           (firestoreRows) {
             if (!mounted) return;
             setState(() {
-              final pendingRows =
-                  OfflineSyncService.instance.getPendingItems();
+              final pendingRows = OfflineSyncService.instance.getPendingItems();
               _allPemanduanList = [...pendingRows, ...firestoreRows];
               _totalData = _allPemanduanList.length;
               _totalPages = _totalData > 0
@@ -169,9 +168,9 @@ class _PemanduanPageState extends State<PemanduanPage> {
             if (!mounted) return;
             setState(() => _isLoading = false);
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Gagal memuat data: $e')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Gagal memuat data: $e')));
             }
           },
         );
@@ -185,9 +184,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
     setState(() {
       _allPemanduanList = [...pendingRows, ...firestoreRows];
       _totalData = _allPemanduanList.length;
-      _totalPages = _totalData > 0
-          ? ((_totalData / _rowsPerPage).ceil())
-          : 1;
+      _totalPages = _totalData > 0 ? ((_totalData / _rowsPerPage).ceil()) : 1;
       _applyPagination();
     });
   }
@@ -1247,16 +1244,17 @@ class _PemanduanPageState extends State<PemanduanPage> {
                           ],
                         ),
                       ),
-                      const PopupMenuItem<String>(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, color: Colors.orange, size: 20),
-                            SizedBox(width: 10),
-                            Text('Edit'),
-                          ],
+                      if (data['status'] != 'Selesai')
+                        const PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit, color: Colors.orange, size: 20),
+                              SizedBox(width: 10),
+                              Text('Edit'),
+                            ],
+                          ),
                         ),
-                      ),
                       if (data['status'] == 'Selesai' && _canGeneratePdf)
                         const PopupMenuItem<String>(
                           value: 'pdf',
@@ -1503,8 +1501,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
 
         Builder(
           builder: (context) {
-            final isOngoing =
-                data['status'] == 'Terjadwal' || data['status'] == 'Aktif';
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1541,17 +1537,6 @@ class _PemanduanPageState extends State<PemanduanPage> {
                         ],
                       ),
                     ),
-                    if (!isOngoing)
-                      const PopupMenuItem<String>(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, color: Colors.orange, size: 20),
-                            SizedBox(width: 10),
-                            Text('Edit'),
-                          ],
-                        ),
-                      ),
                     if (data['status'] == 'Selesai' && _canGeneratePdf)
                       const PopupMenuItem<String>(
                         value: 'pdf',
@@ -2878,7 +2863,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       : 'LAUT';
 
                   // Prepare update data
-                  final updateData = {
+                  final updateData = <String, dynamic>{
                     '_doc_id': _activityDocId(data),
                     'id': _activityDisplayId(data),
                     'vessel_name': vesselName,
@@ -2919,6 +2904,13 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     if (data[key] != null) {
                       updateData[key] = data[key].toString();
                     }
+                  }
+
+                  // Teruskan marker pending jika item ini masih di Hive
+                  if (data['_is_pending'] == true) {
+                    updateData['_is_pending'] = true;
+                    updateData['_pending_id'] =
+                        data['_pending_id']?.toString() ?? '';
                   }
 
                   // Always include time fields to prevent null values
@@ -2973,15 +2965,7 @@ class _PemanduanPageState extends State<PemanduanPage> {
                     }
                     return; // Hentikan proses update
                   }
-                  // ==============================================
-                  // SIMPAN SIGNATURE KE STATE (TEMPORARY)
-                  // TIDAK DISIMPAN KE DATABASE!
-                  // ==============================================
-                  // ==============================================
-                  // SIMPAN SIGNATURE KE STATE (TEMPORARY)
-                  // TIDAK DISIMPAN KE DATABASE!
-                  // ==============================================
-                  // Simpan signature ke Firestore dan pending (untuk PDF)
+
                   if (signatureSaved && signatureController.isNotEmpty) {
                     final signatureBytes = await signatureController
                         .toPngBytes();
@@ -2992,29 +2976,84 @@ class _PemanduanPageState extends State<PemanduanPage> {
                       final signatureDataUrl =
                           'data:image/png;base64,$signatureBase64';
 
-                      // Simpan ke pending untuk PDF
+                      // Simpan ke pending signatures untuk PDF
                       setState(() {
                         _pendingSignatures[signatureId] = signatureBase64;
                         _pendingSignatures[displayId] = signatureBase64;
                       });
 
-                      // Simpan ke Firestore agar tidak muncul canvas lagi
-                      if (signatureId.isNotEmpty) {
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('activity_logs')
-                              .doc(signatureId)
-                              .update({'signature': signatureDataUrl});
-                        } catch (e) {
-                          debugPrint('Gagal simpan tanda tangan: $e');
+                      if (data['_is_pending'] == true) {
+                        // Item pending (Hive): masukkan signature ke updateData
+                        // agar ikut tersimpan ke Hive saat updatePending dipanggil
+                        updateData['signature'] = signatureDataUrl;
+                      } else {
+                        // Item Firestore: simpan signature langsung ke Firestore
+                        // set+merge aman dipakai offline (tidak perlu dokumen ada dulu)
+                        if (signatureId.isNotEmpty) {
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('activity_logs')
+                                .doc(signatureId)
+                                .set({
+                                  'signature': signatureDataUrl,
+                                }, SetOptions(merge: true));
+                          } catch (e) {
+                            debugPrint('Gagal simpan tanda tangan: $e');
+                          }
                         }
                       }
                     }
                   }
 
                   // Call update function (TANPA signature - tidak masuk database)
-                  await _updatePilotages(updateData);
-                  Navigator.pop(context);
+                  // SESUDAH ✅
+                  if (updateData['_is_pending'] == true) {
+                    // Item pending — tangani langsung di sini
+                    try {
+                      final pendingId =
+                          updateData['_pending_id']?.toString() ?? '';
+                      if (pendingId.isEmpty) {
+                        throw Exception('Pending ID tidak ditemukan');
+                      }
+
+                      await OfflineSyncService.instance.updatePending(
+                        pendingId,
+                        updateData,
+                      );
+                      _refreshPendingItems();
+
+                      // Tutup dialog pakai context dialog
+                      if (mounted) Navigator.pop(context);
+
+                      // Tampilkan pesan pakai this.context (page context)
+                      // agar tidak tertutup dialog
+                      if (mounted) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Anda sedang offline, data kegiatan akan '
+                              'otomatis diupload ketika Anda online',
+                            ),
+                            backgroundColor: Colors.orange,
+                            duration: Duration(seconds: 5),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(
+                            content: Text('Gagal menyimpan: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  } else {
+                    // Item Firestore biasa
+                    await _updatePilotages(updateData);
+                    if (mounted) Navigator.pop(context);
+                  }
                 },
                 child: const Text('Update'),
               ),

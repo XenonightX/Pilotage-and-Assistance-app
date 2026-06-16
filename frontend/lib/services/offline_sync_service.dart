@@ -101,24 +101,34 @@ class OfflineSyncService {
   // ─────────────────────────────────────────────────────────────────
   // Update item pending yang sudah ada di Hive
   // ─────────────────────────────────────────────────────────────────
-  Future<void> updatePending(
-    String pendingId,
-    Map<String, dynamic> data,
-  ) async {
-    if (_box == null) return;
+// SESUDAH ✅
+Future<void> updatePending(
+  String pendingId,
+  Map<String, dynamic> data,
+) async {
+  if (_box == null) return;
 
-    final cleaned = Map<String, dynamic>.from(data)
-      ..remove('_is_pending')
-      ..remove('_pending_id')
-      ..remove('_doc_id')
-      ..remove('doc_id')
-      ..remove('id')
-      ..remove('_has_pending_writes');
+  // Ambil data lama dulu, supaya field yang tidak ada di form edit
+  // (misal: date, created_at) tidak hilang saat disimpan ulang
+  final existingRaw = _box!.get(pendingId);
+  final existing = existingRaw != null
+      ? Map<String, dynamic>.from(json.decode(existingRaw as String) as Map)
+      : <String, dynamic>{};
 
-    final serializable = _toJson(cleaned);
-    await _box!.put(pendingId, json.encode(serializable));
-    _pendingCountController.add(_box!.length);
-  }
+  final cleaned = Map<String, dynamic>.from(data)
+    ..remove('_is_pending')
+    ..remove('_pending_id')
+    ..remove('_doc_id')
+    ..remove('doc_id')
+    ..remove('id')
+    ..remove('_has_pending_writes');
+
+  // Merge: data lama jadi dasar, ditimpa oleh field baru yang diedit
+  final merged = {...existing, ..._toJson(cleaned)};
+
+  await _box!.put(pendingId, json.encode(merged));
+  _pendingCountController.add(_box!.length);
+}
 
   // ─────────────────────────────────────────────────────────────────
   // Proses antrian saat online
@@ -153,54 +163,76 @@ class OfflineSyncService {
   // ─────────────────────────────────────────────────────────────────
   // Kirim ke Firestore (sama logika dengan FirestoreDataService)
   // ─────────────────────────────────────────────────────────────────
-  Future<void> _addToFirestore(Map<String, dynamic> data) async {
-    final firestore = FirebaseFirestore.instance;
-    final activityLogs = firestore.collection('activity_logs');
-    final counters = firestore.collection('counters');
-    final doc = activityLogs.doc();
+// SESUDAH ✅
+Future<void> _addToFirestore(Map<String, dynamic> data) async {
+  final firestore = FirebaseFirestore.instance;
+  final activityLogs = firestore.collection('activity_logs');
+  final counters = firestore.collection('counters');
+  final doc = activityLogs.doc();
 
-    final yearMonth = _activityYearMonth(data);
-    final counterRef = counters.doc('activity_$yearMonth');
+  final yearMonth = _activityYearMonth(data);
+  final counterRef = counters.doc('activity_$yearMonth');
 
-    await firestore.runTransaction((transaction) async {
-      final counterSnapshot = await transaction.get(counterRef);
-      final nextSequence =
-          (_toPositiveInt(counterSnapshot.data()?['last_sequence']) ?? 0) + 1;
+  // Bersihkan field internal dan konversi type markers sebelum ke Firestore
+  final cleanData = _cleanForFirestore(
+    Map<String, dynamic>.from(data)
+      ..remove('_is_pending')
+      ..remove('_pending_id')
+      ..remove('_doc_id')
+      ..remove('doc_id')
+      ..remove('_has_pending_writes')
+      ..remove('synced_from_offline'),
+  );
 
-      final panduNumber = _buildActivityNumber(
-        'PANDU',
-        yearMonth,
-        nextSequence,
-      );
-      final tundaNumber = _buildActivityNumber(
-        'TUNDA',
-        yearMonth,
-        nextSequence,
-      );
+  await firestore.runTransaction((transaction) async {
+    final counterSnapshot = await transaction.get(counterRef);
+    final nextSequence =
+        (_toPositiveInt(counterSnapshot.data()?['last_sequence']) ?? 0) + 1;
 
-      transaction.set(counterRef, {
-        'last_sequence': nextSequence,
-        'sequence_year_month': yearMonth,
-        'updated_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+    final panduNumber = _buildActivityNumber('PANDU', yearMonth, nextSequence);
+    final tundaNumber = _buildActivityNumber('TUNDA', yearMonth, nextSequence);
 
-      transaction.set(doc, {
-        ...data,
-        'id': panduNumber,
-        'activity_no': panduNumber,
-        'document_no': panduNumber,
-        'pilot_certificate_no': panduNumber,
-        'tug_certificate_no': tundaNumber,
-        'sequence_no': nextSequence,
-        'sequence_year_month': yearMonth,
-        'created_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
-        'client_created_at': DateTime.now().toIso8601String(),
-        'client_updated_at': DateTime.now().toIso8601String(),
-        'synced_from_offline': true,
-      });
+    transaction.set(counterRef, {
+      'last_sequence': nextSequence,
+      'sequence_year_month': yearMonth,
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    transaction.set(doc, {
+      ...cleanData,
+      'id': panduNumber,
+      'activity_no': panduNumber,
+      'document_no': panduNumber,
+      'pilot_certificate_no': panduNumber,
+      'tug_certificate_no': tundaNumber,
+      'sequence_no': nextSequence,
+      'sequence_year_month': yearMonth,
+      'created_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+      'client_created_at': DateTime.now().toIso8601String(),
+      'client_updated_at': DateTime.now().toIso8601String(),
+      'synced_from_offline': true,
     });
+  });
+}
+
+// Tambah method baru ini di bawah _fromJsonForDisplay:
+/// Bersihkan data dari type marker JSON sebelum dikirim ke Firestore
+Map<String, dynamic> _cleanForFirestore(Map<String, dynamic> data) {
+  final result = <String, dynamic>{};
+  for (final entry in data.entries) {
+    final value = entry.value;
+    if (value is Map && value['__type'] == 'serverTimestamp') {
+      // Gunakan nilai fallback sebagai string biasa
+      result[entry.key] = value['fallback'];
+    } else if (value is Map<String, dynamic>) {
+      result[entry.key] = _cleanForFirestore(value);
+    } else {
+      result[entry.key] = value;
+    }
   }
+  return result;
+}
 
   // ─────────────────────────────────────────────────────────────────
   // Serialisasi / deserialisasi FieldValue
